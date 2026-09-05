@@ -97,8 +97,7 @@ textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line)
 </header>
 <div class="wrap" id="app"></div>
 
-<script type="text/plain" id="tpl">
-/* ***********************************************************************************
+<script type="text/plain" id="tpl">/* ***********************************************************************************
 * SigRouter — Sistema Universal de Roteamento de Sinais
 * -----------------------------------------------------------------------------------
 * DISPOSITIVO : Cronus Zen + PlayStation 5 (DualSense)   |   GPC 32-bit
@@ -281,6 +280,13 @@ const string LATT_6  = "80ms";  const string LATT_7  = "100ms"; const string LAT
 const string LATT_9  = "150ms"; const string LATT_10 = "200ms"; const string LATT_11 = "250ms";
 const string LATT_12 = "350ms"; const string LATT_13 = "500ms"; const string LATT_14 = "750ms";
 const string LATT_15 = "1.0s";
+// v5: tabelas do AFTER (8 valores, persistente) e do DELAY (4 valores).
+const string AFT_0 = "50ms";  const string AFT_1 = "100ms"; const string AFT_2 = "150ms";
+const string AFT_3 = "200ms"; const string AFT_4 = "300ms"; const string AFT_5 = "500ms";
+const string AFT_6 = "1.0s";  const string AFT_7 = "2.0s";
+const string DLY_0 = "200ms"; const string DLY_1 = "400ms";
+const string DLY_2 = "700ms"; const string DLY_3 = "1.2s";
+const string DLY_LBL = "DELAY:";
 // TURBO labels e modo
 const string TRB_PERM_L = "PERM:";
 const string TRB_LAT_L  = "LAT:";
@@ -320,7 +326,6 @@ const string NAV_BTN     = "LR_MARCA LR_PAG";
 const string FT_LBL  = "ATRASO:";
 // --- FONTE_1 — BTN_FN ---
 
-const string FN_BLOQ     = "BLOK";
 const string FN_FINAL    = "TOGGLE";
 const string FN_FINAFT   = "AFTER";      // v3zj
 const string FN_ATIVO    = "*";
@@ -386,29 +391,23 @@ define TIME_CIRCLE_CLOSE = 200;   // CIRCLE > 0,2s fecha MenuDin
 define TIME_SHARE_SAVE   = 1000;
 define TIME_TRI_DELETE  = 1000;  // TRIANGLE segurado 1s para deletar
 define MENUDIN_DEL_CONF = 38;    // tela de confirmação de deleção
-// --- Bits do SPVAR_A ---
-// bit 0:     SLOT_USED
-// bits 1-4:  PERFIS S1-S4
-// bit 5:     LINK_F1
-// bit 6:     F1_ON
-// bit 7:     F2_ON
-// bit 8:     F3_USED (RAM only — informativo)
-// bits 9-11: F1_EIXO
-// bit 12:    F1_PASSIVO
-// bits 13-14: F1_DST_TIPO
-// bits 15-29: F1_DST (15 bits)
-// bits 30-31: RESERVA
+// --- MAPA DE BITS DO SPVAR_A — fonte unica de verdade (v5) ---
+// A auditoria externa apontou TRES descricoes conflitantes deste mesmo SPVAR espalhadas
+// pelo arquivo, alem de um comentario declarando "bit 12 livre" quando ele e a metade
+// alta do DST_TIPO. Ficou uma so, esta, e ela e a que vale:
+//   bit  0      SLOT_USED
+//   bits 1-4    DOMINIOS D1-D4
+//   bits 5-9    FONTE_TIPO (23 valores)
+//   bit  10     FONTE_PASSIVO
+//   bits 11-12  DST_TIPO (DIRECT / STATIC / TURBO)
+//   bits 13-29  DESTINOS — 4 empacotados, 19^4 = 130321
+//   bits 30-31  pack de tempos do combo (bits 10-11 dele)
+// Nao ha bit livre. Qualquer campo novo exige tirar de outro lugar.
 define BIT_SLOT_USED     = 0;
 define BIT_S1            = 1;
 define BIT_S2            = 2;
 define BIT_S3            = 3;
 define BIT_S4            = 4;
-define BIT_LINK_F1       = 5;
-define BIT_F1_ON         = 6;
-define BIT_F2_ON         = 7;
-define BIT_F3_USED       = 8;
-define SHIFT_F1_EIXO     = 9;
-define BIT_F1_PASSIVO    = 12;
 // v3zc RELAYOUT DO SPVAR_A — para caber os 4 D-pads nos destinos (14 -> 18 bits).
 // O INIC saiu (ver Gatilho_Alterna) e o campo de DESTINO nao expandia no lugar, entao
 // tudo desceu: FONTE_TIPO 5-9, PASSIVO 10, DST_TIPO 11-12, DST 13-30. Sobra o bit 31.
@@ -428,13 +427,6 @@ define SHIFT_F1_DST      = 13;   // 17 bits — 4 destinos (0=nenhum, 1-18)
 // Inicializar_Estado). BIT_F1_RELIG e BIT_FA_RELIG ja tinham saido na v3zb.
 // SPVAR_A bit 31: LIVRE
 // =============================================================
-// --- FONTE ÚNICA v3 — bits do SPVAR_A (substituem bits 5-12 acima) ---
-// bit 5:      FONTE_ON
-// bits 6-10:  FONTE_TIPO (5 bits, 0-21 — ver enum abaixo)
-// bit 11:     FONTE_PASSIVO
-// bit 12:     FONTE_RELIG
-// bits 13-31: inalterados (DESTINO_TIPO, DESTINO_MASK, INIC, RELIG_FINALIZA — via
-//             SHIFT_F1_DST_TIPO/SHIFT_F1_DST/BIT_F1_INIC/BIT_F1_RELIG acima, mesma posição)
 define SHIFT_FONTE_TIPO    = 5;   // v3zc
 define SHIFT_FONTE_PASSIVO = 10;  // v3zc
 // v3za: o RELIG DA FONTE FOI REMOVIDO. O bit 12 do SPVAR_A esta livre.
@@ -515,7 +507,20 @@ define BIT_HOLD_MODO      = 15;   // 1 bit — 0=APOS (classico), 1=ATE (toque c
 // SPVAR_C fecha exato com os 4 botões restantes + PERM+LAT+CICLOS=32. Zero sobreposição,
 // zero bit livre desperdiçado (confirmado por checagem programática).
 define SHIFT_GATILHO_HPHOLD_TEMPO = 16;  // v3ze: 6 bits — SPVAR_B (bits 16-21)
-define SHIFT_GATILHO_BLOQ_BTN     = 22;  // v3ze: 5 bits — SPVAR_B (bits 22-26)
+// v5: o GAMA BLOK FOI REMOVIDO e os 5 bits dele foram redistribuidos.
+// Motivo (do Daniel): em uso real ele nunca teve serventia — suspender enquanto segurado
+// e um gesto que compete com o proprio ato de jogar. E ele custava caro: era consultado
+// em OITO pontos do caminho por quadro (Ent_Livre, Suprime_Gatilhos, Gatilho_Btn_Val,
+// o Run_Instance e o criterio de engajamento). Tirar libera bits E alivia o ciclo.
+// O que entrou no lugar:
+//   DELAY (2 bits, 4 valores) — atrasa a subida da resposta. Nasceu do MOD_03 do FIFA:
+//     correr e R2 travado subindo junto com o movimento, e sem atraso o sprint dispara
+//     no primeiro toque do analogico, tirando o controle de conduzir a bola.
+//   AFTER_TMP (3 bits, 8 valores) — o tempo do AFTER, que vivia em RAM e se perdia a
+//     cada reinicio. Agora PERSISTE. Com isso sobra so o ZETA na lista do que nao
+//     sobrevive ao desligamento.
+define SHIFT_DELAY      = 22;   // 2 bits — SPVAR_B (bits 22-23)
+define SHIFT_AFTER_TMP  = 24;   // 3 bits — SPVAR_B (bits 24-26)
 // SPVAR_B: TURBO_MODO em 27-28 | bits 29-31 LIVRES (viram parte do pack de tempos do COMBO)
 define SHIFT_GATILHO_HPHOLD_BTN   = 0;   // 5 bits — SPVAR_C (bits 0-4)
 // v3zb: TRIO de botoes empacotado — DUPLO, FINAL e FINALAFTER em 13 bits (SPVAR_C 5-17)
@@ -531,12 +536,6 @@ define SHIFT_GATILHO_TRIO_BTN    = 5;   // 13 bits — SPVAR_C (bits 5-17)
 // TURBO_PERM/LAT/CICLOS ficam em SPVAR_C bits 20-31 (definidos como literais nos próprios
 // Get/Set_Turbo_*, não mudam de posição — só as 4 seleções de botão acima abriram espaço).
 // =============================================================
-define F1_EIXO_F1X       = 0;
-define F1_EIXO_F1Y       = 1;
-define F1_EIXO_LX        = 2;
-define F1_EIXO_LY        = 3;
-define F1_EIXO_RX        = 4;
-define F1_EIXO_RY        = 5;
 // --- FONTE_1 — direção ---
 define F1_DIR_NEGATIVO   = 0;
 define F1_DIR_ABSOLUTO   = 1;
@@ -546,19 +545,11 @@ define TRB_MOD_POS       = 1;   // TURBO eixo: polo sempre +100
 define TRB_MOD_NEG       = 2;   // TURBO eixo: polo sempre -100
 define TRB_MOD_ABSF      = 3;   // TURBO eixo: polo segue o sinal ATUAL da fonte (resgate do comportamento antigo)
 // --- FONTE_1 — gatilho tipo ---
-define GTL_SEMPRE_ATIVO  = 0;
-define GTL_BTN_HPHOLD    = 1;
-define GTL_DUPLO_CLIQUE  = 2;
 // --- FONTE_1 — BTN_FN tipo ---
-define FN_TIPO_NONE      = 0;
-define FN_TIPO_BLOQ      = 1;
-define FN_TIPO_FINAL     = 2;
-define FN_TIPO_FINAFT    = 3;
 // --- FONTE_1 — destino tipo ---
 define DST_TIPO_DIRECT   = 0;
 define DST_TIPO_ESTATC   = 1;
 define DST_TIPO_TURBO    = 2;
-define DST_TIPO_COMBO    = 3;
 // --- Bits de destino (15 bits, índices 0-14) ---
 define DST_BIT_L1        = 0;
 define DST_BIT_L2        = 1;
@@ -597,19 +588,10 @@ define BTN_BIT_LT        = 12;
 define BTN_BIT_RT        = 13;
 define BTN_BIT_TCH       = 14;
 define BTN_BIT_SHR       = 15;
-define BTN_BIT_NAT       = 16;  // NATIVO — só no BTN_FN (eixo da própria instância)
 // --- Tempo HPHOLD gatilho (1500-2500ms, passo 100ms = índices 0-10) ---
-define GTL_TMP_MIN       = 1000;
-define GTL_TMP_PASSO     = 100;
-define GTL_TMP_MAX_IDX   = 15;
 // --- Tempo BTN_FN (índices) ---
-define FN_TMP_HOLD       = 0;   // 500ms-1500ms
-define FN_TMP_HPHOLD     = 1;   // 1500ms-2500ms
 // --- TAIL_TIME (índices 0-25: 0=OFF, 1-25=0.5s-3.0s passo 0.1s) ---
-define TAIL_MAX_IDX      = 25;
 // --- Subcursores para telas com 2 linhas ---
-define SUB_LINHA_0       = 0;
-define SUB_LINHA_1       = 1;
 // =============================================================
 // SEÇÃO 3 — VARIÁVEIS DE ESTADO GLOBAL
 // =============================================================
@@ -666,6 +648,12 @@ int Cmb_P=0;
 // sobreviver a essas chamadas.
 int Swp_T=0; int Swp_A=0; int Swp_B=0;
 int Cmb_Tmp=0; int Cmb_D1=0; int Cmb_D2=0; int Cmb_D3=0; int Cmb_D4=0; int Cmb_N=0;
+// v5: timer do DELAY por instancia (ms restantes ate a resposta poder subir).
+// Vive em RAM porque e estado de execucao, nao configuracao.
+int Dly_01=0; int Dly_02=0; int Dly_03=0; int Dly_04=0; int Dly_05=0; int Dly_06=0; int Dly_07=0;
+int Dly_08=0; int Dly_09=0; int Dly_10=0; int Dly_11=0; int Dly_12=0; int Dly_13=0; int Dly_14=0;
+int Dly_15=0; int Dly_16=0; int Dly_17=0; int Dly_18=0; int Dly_19=0; int Dly_20=0; int Dly_21=0;
+int Dly_Arm=0;   // bit N-1 = a contagem do MOD N ja comecou
 int Est_Tmp              = 0;   // v3za: valor absoluto da fonte no destrave do ESTATC
    // retorno de Cycle_Mod (máscara seleção)
    // retorno de Cycle_Mod (máscara modo)
@@ -715,12 +703,6 @@ int Resp_Off_Y = 0;    // máscara 16 bits — respostas do EIXO_Y individualmen
 // --- v3: fonte única (substitui os 3 pares antigos de rastreio por eixo/F2 -> 1 par) ---
 int Src_Acima_Fonte = 0;   // máscara 16 bits — fonte estava na zona ativa no ciclo anterior
 int Resp_Off_Fonte  = 0;   // máscara 16 bits — respostas da fonte individualmente suprimidas (veto)
-// FINAL_AFTER configurado (RAM, não persistente — corte cirúrgico 3.9): empacotado
-// bits0-4=tempo(idx 0-19) bit5=relig. Default tempo=9 (1.0s), relig=0.
-int FA_Cfg_01=39; int FA_Cfg_02=39; int FA_Cfg_03=39; int FA_Cfg_04=39; int FA_Cfg_05=39; int FA_Cfg_06=39;
-int FA_Cfg_07=39; int FA_Cfg_08=39; int FA_Cfg_09=39; int FA_Cfg_10=39; int FA_Cfg_11=39; int FA_Cfg_12=39;
-int FA_Cfg_13=39; int FA_Cfg_14=39; int FA_Cfg_15=39; int FA_Cfg_16=39; int FA_Cfg_17=39; int FA_Cfg_18=39;
-int FA_Cfg_19=39; int FA_Cfg_20=39; int FA_Cfg_21=39;
 // RELIG de HOLD/2CLK — RAM (decisão: manter 21 instâncias). bit0=HOLD_RELIG, bit1=DUPLO_RELIG.
 // Default 3 (ambos bits=1="sempre alterna") preserva o comportamento já testado em v3a/b/c.
 int GT_Relig_01=0; int GT_Relig_02=0; int GT_Relig_03=0; int GT_Relig_04=0; int GT_Relig_05=0; int GT_Relig_06=0;
@@ -753,7 +735,7 @@ int Dc_17=0; int Dc_18=0; int Dc_19=0; int Dc_20=0; int Dc_21=0;
 // confirmar com X ja acendia o R — porque as telas gravam nos SPVARs ao navegar (mesmo
 // regravando valor identico) e o Commit_Wz nao tinha como distinguir. Comparar resolve:
 // se os valores sao os mesmos, os SPVARs sao bit a bit iguais.
-int Snap_A=0; int Snap_B=0; int Snap_C=0; int Snap_FA=0;
+int Snap_A=0; int Snap_B=0; int Snap_C=0;
 int Snap_EX=0; int Snap_AS=0; int Snap_BL=0;
 int Cfg_Ram=0;
 int Cfg_Salvo=0;
@@ -807,7 +789,8 @@ int Wz_Cond_ThrOut   = 0;
 int Wz_Cond_Dir      = 1;    // default ABS
 // --- Wizard TIPO+DESTINO v3 (Seção 5) ---
 int Wz_Tipo        = 0;    // 0=DIRECT 1=ESTATC 2=TURBO
-int Wz_Turbo_Lat   = 3;    // v3zc: 100ms
+int Wz_Turbo_Lat   = 3;    // v5: idx 3 = 40ms. O comentario dizia 100ms desde a v3zr,
+                           // quando a tabela virou 16 valores e o indice mudou de significado.
 int Wz_Turbo_Modo  = 0;    // default ABS
 int Wz_Turbo_Ciclos= 0;    // default ATIVO (enquanto ativo)
 // v3ze: edicao dos 4 passos. Destino 0=nenhum, 1-18 = indice do destino + 1.
@@ -818,14 +801,14 @@ int Wz_Mod_Tipo = 0;   // 0=EXCL 1=ASSOC 2=BLOQ
 int Wz_Mod_Sel  = 0;   // máscara sendo editada (bit N-1 = instância N)
 // --- Wizard GATILHO+BTN_FN v3 (Seção 4) — lista de 5 tipos, botão único cada ---
 int Wz_Gatilho_Lista_Cur    = 0;   // cursor da lista (0-5: BLOQ,HPHOLD,DUPLO,FINAL,FINALAFTER,INIC)
-int Wz_Gatilho_Bloq_Btn     = 0;
+int Wz_Delay = 0;   // v5
 int Wz_Gatilho_Hphold_Btn   = 0;
 int Wz_Gatilho_Hphold_Tempo = 0;
 int Wz_Gatilho_Hold_Modo    = 0;   // v3z8: 0=APOS 1=ATE
 int Wz_Gatilho_Duplo_Btn    = 0;
 int Wz_Gatilho_Final_Btn    = 0;
 int Wz_Gatilho_FA_Btn       = 0;
-int Wz_Gatilho_FA_Tempo     = 39;  // v3zc: idx39 = 1000ms
+int Wz_Gatilho_FA_Tempo     = 5;   // v5: idx5 = 500ms na tabela de 8
     // eixo X selecionado (0=F1X 1=LX 2=RX)
 
     // ON/OFF
@@ -1142,13 +1125,41 @@ function Religa_Fonte(num) {
     else       Src_Acima_Fonte = Src_Acima_Fonte & (~(1 << (num - 1)));
 }
 // ===== V3-e: GATILHO+BTN_FN unificados (dados) =====
-function Get_Gatilho_Bloq_Btn(num) {
-    return (Get_Spvar_B(num) >> SHIFT_GATILHO_BLOQ_BTN) & 0x1F;
+function Get_Delay(num) {
+    return (Get_Spvar_B(num) >> SHIFT_DELAY) & 0x3;
 }
-function Set_Gatilho_Bloq_Btn(num, v) {
-    Work_A = Get_Spvar_B(num) & (~(0x1F << SHIFT_GATILHO_BLOQ_BTN));
-    Work_A = Work_A | ((v & 0x1F) << SHIFT_GATILHO_BLOQ_BTN);
+function Set_Delay(num, v) {
+    Work_A = Get_Spvar_B(num) & (~(0x3 << SHIFT_DELAY));
+    Work_A = Work_A | ((v & 0x3) << SHIFT_DELAY);
     Set_Spvar_B(num, Work_A);
+}
+// v5: o tempo do AFTER agora vive no SPVAR_B — persistente. O FA_Cfg (RAM) some.
+function Get_FA_Tempo(num) {
+    return (Get_Spvar_B(num) >> SHIFT_AFTER_TMP) & 0x7;
+}
+function Set_FA_Tempo(num, v) {
+    Work_A = Get_Spvar_B(num) & (~(0x7 << SHIFT_AFTER_TMP));
+    Work_A = Work_A | ((v & 0x7) << SHIFT_AFTER_TMP);
+    Set_Spvar_B(num, Work_A);
+}
+// v5: tabelas novas. O DELAY atrasa a SUBIDA da resposta; o AFTER conta depois de soltar.
+function Delay_Ms(idx) {
+    if(idx == 0) return 200;
+    if(idx == 1) return 400;
+    if(idx == 2) return 700;
+    return 1200;
+}
+// Concentrada na faixa CURTA, que e onde o Daniel usa: passo de 50ms ate 200ms,
+// e marcos esparsos acima disso.
+function After_Ms(idx) {
+    if(idx == 0) return 50;
+    if(idx == 1) return 100;
+    if(idx == 2) return 150;
+    if(idx == 3) return 200;
+    if(idx == 4) return 300;
+    if(idx == 5) return 500;
+    if(idx == 6) return 1000;
+    return 2000;
 }
 function Get_Gatilho_Hphold_Btn(num) {
     return (Get_Spvar_C(num) >> SHIFT_GATILHO_HPHOLD_BTN) & 0x1F;
@@ -1197,53 +1208,6 @@ function Set_Gatilho_FinalAfter_Btn(num, v) {
     Btn_Tmp = ((Btn_Tmp / 17) * 17) + (v & 0x1F);
     Work_A = Get_Spvar_C(num) & (~(0x1FFF << SHIFT_GATILHO_TRIO_BTN));
     Set_Spvar_C(num, Work_A | ((Btn_Tmp & 0x1FFF) << SHIFT_GATILHO_TRIO_BTN));
-}
-function Get_FA_Cfg(num) {
-    if(num== 1) return FA_Cfg_01;
-    if(num== 2) return FA_Cfg_02;
-    if(num== 3) return FA_Cfg_03;
-    if(num== 4) return FA_Cfg_04;
-    if(num== 5) return FA_Cfg_05;
-    if(num== 6) return FA_Cfg_06;
-    if(num== 7) return FA_Cfg_07;
-    if(num== 8) return FA_Cfg_08;
-    if(num== 9) return FA_Cfg_09;
-    if(num==10) return FA_Cfg_10;
-    if(num==11) return FA_Cfg_11;
-    if(num==12) return FA_Cfg_12;
-    if(num==13) return FA_Cfg_13;
-    if(num==14) return FA_Cfg_14;
-    if(num==15) return FA_Cfg_15;
-    if(num==16) return FA_Cfg_16;
-    if(num==17) return FA_Cfg_17;
-    if(num==18) return FA_Cfg_18;
-    if(num==19) return FA_Cfg_19;
-    if(num==20) return FA_Cfg_20;
-    if(num==21) return FA_Cfg_21;
-    return 9;
-}
-function Set_FA_Cfg(num, v) {
-    if(num== 1) FA_Cfg_01=v;
-    if(num== 2) FA_Cfg_02=v;
-    if(num== 3) FA_Cfg_03=v;
-    if(num== 4) FA_Cfg_04=v;
-    if(num== 5) FA_Cfg_05=v;
-    if(num== 6) FA_Cfg_06=v;
-    if(num== 7) FA_Cfg_07=v;
-    if(num== 8) FA_Cfg_08=v;
-    if(num== 9) FA_Cfg_09=v;
-    if(num==10) FA_Cfg_10=v;
-    if(num==11) FA_Cfg_11=v;
-    if(num==12) FA_Cfg_12=v;
-    if(num==13) FA_Cfg_13=v;
-    if(num==14) FA_Cfg_14=v;
-    if(num==15) FA_Cfg_15=v;
-    if(num==16) FA_Cfg_16=v;
-    if(num==17) FA_Cfg_17=v;
-    if(num==18) FA_Cfg_18=v;
-    if(num==19) FA_Cfg_19=v;
-    if(num==20) FA_Cfg_20=v;
-    if(num==21) FA_Cfg_21=v;
 }
 function Get_GT_Relig(num) {
     if(num== 1) return GT_Relig_01;
@@ -1317,11 +1281,6 @@ function Gatilho_Alterna(num) {
 }
 // v3: agora persistente — reaproveita o bit 5 do SPVAR_A, liberado
 // depois que FONTE_ON foi removido (redundante com S1-S4 todos OFF).
-function Get_FA_Tempo(num) { return Get_FA_Cfg(num) & 0x7F; }
-function Set_FA_Tempo(num, v) {
-    Work_A = Get_FA_Cfg(num) & (~0x7F);
-    Set_FA_Cfg(num, Work_A | (v & 0x7F));
-}
 // v3z4: RELIG do FINAL_AFTER agora PERSISTENTE (SPVAR_A bit 29, ex-bit-14 do DESTINO).
 // Saiu do FA_Cfg (RAM), que agora guarda so o tempo. Como vive no SPVAR_A, ele viaja de
 // graca no Compact_Pos/Zerar_Posicao da delecao e vai pra EEPROM no Save_Instance —
@@ -1410,6 +1369,7 @@ function Aplicar_RespOff_Inst(num) {
         // destino travado é liberado por FINALIZA/FINAL_AFTER/HOLD/2CLK e pelos MODs —
         // todos passam por Aplicar_RespOff_Inst ao desligar a instância.
         Set_Estatc_Travado(num, 0);
+        Delay_Zerar(num);   // v5: proxima subida recomeca a contagem limpa
         // v3t: rearma a máquina do TURBO no desligamento. Com fonte "---" a zona é sempre 1
         // (não existe fonte pra sair da zona), então os CICLOS terminavam e NUNCA rearmavam
         // — o turbo rodava uma vez só e travava. Agora o próprio ciclo lig/desl do gatilho
@@ -1499,11 +1459,6 @@ function Gatilho_DUPLO_v3(num) {
     }
     Set_Dc(num, Work_D);
 }
-function BTN_FN_Bloqueia_v3(num) {
-    Work_A = Get_Gatilho_Bloq_Btn(num);
-    if(Work_A == 0) return 0;
-    return Ler_Btn_Fisico(Work_A - 1);
-}
 function BTN_FN_Finaliza_v3(num) {
     Work_A = Get_Gatilho_Final_Btn(num);
     if(Work_A == 0) return;
@@ -1537,7 +1492,7 @@ function BTN_FN_FinalAfter_v3(num) {
             // CORRIGIDO: usava (idx+1)*100 (fórmula da escala antiga 0-19). Com a escala
             // nova (0-95, tabela do HOLD), idx 55 (default ~1,0s) virava 5.600ms — por isso
             // o tempo "excedia". Agora converte pela mesma tabela do BTN_HOLD.
-            Work_D = Hphold_Tempo_Ms(Get_FA_Tempo(num));
+            Work_D = After_Ms(Get_FA_Tempo(num));   // v5: tabela propria, persistente
             Work_B = 0;
         } else if(Work_D > 0) {
             Work_D = Work_D - get_rtime();
@@ -1787,8 +1742,51 @@ function Executar_Turbo_Fonte(num) {
 // v3z1: a instância está em REPOUSO agora? (fonte fora da zona E nenhum botão de gatilho
 // pressionado). Base do gate de entrada de perfil — ver Ent_Trava no Run_Instance_v3.
 // Sem fonte ("---") só os gatilhos contam, porque não há zona a consultar.
+function Get_Dly(n) {
+    if(n== 1) return Dly_01;   if(n== 2) return Dly_02;   if(n== 3) return Dly_03;
+    if(n== 4) return Dly_04;   if(n== 5) return Dly_05;   if(n== 6) return Dly_06;
+    if(n== 7) return Dly_07;   if(n== 8) return Dly_08;   if(n== 9) return Dly_09;
+    if(n==10) return Dly_10;   if(n==11) return Dly_11;   if(n==12) return Dly_12;
+    if(n==13) return Dly_13;   if(n==14) return Dly_14;   if(n==15) return Dly_15;
+    if(n==16) return Dly_16;   if(n==17) return Dly_17;   if(n==18) return Dly_18;
+    if(n==19) return Dly_19;   if(n==20) return Dly_20;   if(n==21) return Dly_21;
+    return 0;
+}
+function Set_Dly(n, v) {
+    if(n== 1) Dly_01=v;   if(n== 2) Dly_02=v;   if(n== 3) Dly_03=v;
+    if(n== 4) Dly_04=v;   if(n== 5) Dly_05=v;   if(n== 6) Dly_06=v;
+    if(n== 7) Dly_07=v;   if(n== 8) Dly_08=v;   if(n== 9) Dly_09=v;
+    if(n==10) Dly_10=v;   if(n==11) Dly_11=v;   if(n==12) Dly_12=v;
+    if(n==13) Dly_13=v;   if(n==14) Dly_14=v;   if(n==15) Dly_15=v;
+    if(n==16) Dly_16=v;   if(n==17) Dly_17=v;   if(n==18) Dly_18=v;
+    if(n==19) Dly_19=v;   if(n==20) Dly_20=v;   if(n==21) Dly_21=v;
+}
+// v5: o DELAY vale para o INSTANTE EM QUE A RESPOSTA IA COMECAR — nao para o ALFA nem
+// para o GAMA em separado. Foi o MOD_03 do FIFA que fechou essa decisao: ele nao tem
+// ALFA nem GAMA, sobe pelo ZETA ASSOC, e amarrar o delay a qualquer um dos dois o
+// deixaria de fora. Amarrar a RESPOSTA e a mesma regra que ja governa os ZETA.
+// Devolve 1 quando a resposta pode subir; 0 enquanto o atraso corre.
+// O timer zera quando o MOD para de responder, entao a proxima subida recomeca limpo.
+function Delay_Passou(num) {
+    if(Get_Delay(num) == 0 && !((Dly_Arm >> (num - 1)) & 1)) {
+        // idx 0 tambem tem valor (200ms) — a checagem acima e so do ARME, nao do valor
+    }
+    if(!((Dly_Arm >> (num - 1)) & 1)) {
+        Set_Dly(num, Delay_Ms(Get_Delay(num)));
+        Dly_Arm = Dly_Arm | (1 << (num - 1));
+    }
+    Work_N = Get_Dly(num);
+    if(Work_N <= 0) return 1;
+    Work_N = Work_N - get_rtime();
+    if(Work_N < 0) Work_N = 0;
+    Set_Dly(num, Work_N);
+    return Work_N <= 0;
+}
+function Delay_Zerar(num) {
+    Dly_Arm = Dly_Arm & (~(1 << (num - 1)));
+    Set_Dly(num, 0);
+}
 function Ent_Livre(num) {
-    if(Get_Gatilho_Bloq_Btn(num)       && Ler_Btn_Fisico(Get_Gatilho_Bloq_Btn(num) - 1))       return 0;
     if(Get_Gatilho_Duplo_Btn(num)      && Ler_Btn_Fisico(Get_Gatilho_Duplo_Btn(num) - 1))      return 0;
     if(Get_Gatilho_Final_Btn(num)      && Ler_Btn_Fisico(Get_Gatilho_Final_Btn(num) - 1))      return 0;
     if(Get_Gatilho_Hphold_Btn(num)     && Ler_Btn_Fisico(Get_Gatilho_Hphold_Btn(num) - 1))     return 0;
@@ -1798,7 +1796,6 @@ function Ent_Livre(num) {
     return 1;
 }
 function Suprime_Gatilhos(num) {
-    Work_N = Get_Gatilho_Bloq_Btn(num);       if(Work_N) Set_Btn_Fisico(Work_N - 1, 0);
     Work_N = Get_Gatilho_Duplo_Btn(num);      if(Work_N) Set_Btn_Fisico(Work_N - 1, 0);
     Work_N = Get_Gatilho_Final_Btn(num);      if(Work_N) Set_Btn_Fisico(Work_N - 1, 0);
     Work_N = Get_Gatilho_Hphold_Btn(num);     if(Work_N) Set_Btn_Fisico(Work_N - 1, 0);
@@ -1812,8 +1809,6 @@ function Gatilho_Btn_Val(num) {
     Work_N = Get_Gatilho_Final_Btn(num);
     if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
     Work_N = Get_Gatilho_FinalAfter_Btn(num);
-    if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
-    Work_N = Get_Gatilho_Bloq_Btn(num);
     if(Work_N) return Ler_Btn_Fisico(Work_N - 1);
     return 100;
 }
@@ -1870,7 +1865,6 @@ function Run_Instance_v3(num) {
     if(Get_Fonte_Passivo(num)) Suprime_Fonte(num);
     // Só executa respostas se a instância estiver ativa
     if(!Inst_Esta_Ativa(num)) return;
-    if(BTN_FN_Bloqueia_v3(num)) return;
     if((Bloq_Mask  >> (num - 1)) & 1) {
         // v3w: bloquear DESMONTA a resposta, não só a suspende. Sem isto, uma instância
         // bloqueada CONGELA seu estado (TrbSt no meio da rajada, ESTATC travado) e continua
@@ -1892,6 +1886,11 @@ function Run_Instance_v3(num) {
     if((Excl_Veto  >> (num - 1)) & 1) return;    // MOD_EXCL
     if((Assoc_Mask >> (num - 1)) & 1) return;    // MOD_ASSOC
     if((Resp_Off_Fonte >> (num - 1)) & 1) return; // suprimida (desligada)
+    // v5: DELAY — ultimo gate antes de responder. Fica aqui de proposito: neste ponto
+    // ja passou por perfil, gate de entrada, gatilhos, ZETA e supressao, entao "chegou
+    // aqui" significa exatamente "a resposta ia subir agora". E o instante certo para
+    // comecar a contar, seja quem for que destravou.
+    if(!Delay_Passou(num)) return;
     // v3s CORRIGIDO: o gate anterior (return em FONTE_NENHUMA) bloqueava a escrita no
     // destino ANTES de qualquer tipo rodar — por isso o gatilho ligava a instância mas
     // nada acontecia. Agora, sem fonte, o GATILHO é o "player": chegou aqui = instância
@@ -2061,6 +2060,7 @@ function Inicializar_Estado() {
         Set_Estatc_Travado(Work_N, 0);
         Set_Estatc_Teto(Work_N, 0);   // v3za
         Set_Estatc_Neg(Work_N, 0);    // v3zw
+        Delay_Zerar(Work_N);          // v5
         // CORRIGIDO (bug 1): Set_GT_Relig e Set_FA_Cfg saíram daqui. Esta função é chamada
         // em DOIS lugares: no boot (onde resetar é correto) e ao DELETAR uma instância (pra
         // reconstruir Inst_Ativa). No segundo caso, resetar apagava a configuração do
@@ -2378,7 +2378,6 @@ function Bloq_Resp_Ativa_v3(i) {
     //                      contar como de pe ali podia disparar um EXCL espurio no
     //                      exato instante da troca.
     if((Ent_Trava >> (i - 1)) & 1) return 0;
-    if(BTN_FN_Bloqueia_v3(i)) return 0;
     if(!Tem_Destino(i)) return 0;   // v3ze: sem destino nao participa de relacao nenhuma
     Work_B = Get_F1_Tipo(i);
     if(Work_B == DST_TIPO_TURBO) {
@@ -2764,16 +2763,18 @@ main {
                 Wz_SubCursor = 0; Wz_Entrando = TRUE;
                 Update_OLED();
             }
-            if(event_press(PS5_UP))   { Wz_SubCursor--; if(Wz_SubCursor < 0) Wz_SubCursor = 1; Update_OLED(); }   // v3zc: 2 campos
-            if(event_press(PS5_DOWN)) { Wz_SubCursor++; if(Wz_SubCursor > 1) Wz_SubCursor = 0; Update_OLED(); }
+            if(event_press(PS5_UP))   { Wz_SubCursor--; if(Wz_SubCursor < 0) Wz_SubCursor = 2; Update_OLED(); }   // v5: 3 campos
+            if(event_press(PS5_DOWN)) { Wz_SubCursor++; if(Wz_SubCursor > 2) Wz_SubCursor = 0; Update_OLED(); }
             if(event_press(PS5_LEFT)) {
                 if(Wz_SubCursor == 0) { Wz_Fonte_Tipo--; if(Wz_Fonte_Tipo < 0) Wz_Fonte_Tipo = 22; }
                 if(Wz_SubCursor == 1) Wz_Fonte_Passivo = !Wz_Fonte_Passivo;
+                if(Wz_SubCursor == 2) { Wz_Delay--; if(Wz_Delay < 0) Wz_Delay = 3; }
                 Update_OLED();
             }
             if(event_press(PS5_RIGHT)) {
                 if(Wz_SubCursor == 0) { Wz_Fonte_Tipo++; if(Wz_Fonte_Tipo > 22) Wz_Fonte_Tipo = 0; }
                 if(Wz_SubCursor == 1) Wz_Fonte_Passivo = !Wz_Fonte_Passivo;
+                if(Wz_SubCursor == 2) { Wz_Delay++; if(Wz_Delay > 3) Wz_Delay = 0; }
                 Update_OLED();
             }
         }
@@ -2839,14 +2840,14 @@ main {
                 Update_OLED();
             }
             if(event_press(PS5_UP)) {
-                Wz_Gatilho_Lista_Cur--; if(Wz_Gatilho_Lista_Cur < 0) Wz_Gatilho_Lista_Cur = 4;   // v3za: INIC saiu daqui
+                Wz_Gatilho_Lista_Cur--; if(Wz_Gatilho_Lista_Cur < 0) Wz_Gatilho_Lista_Cur = 3;   // v5: o BLOK saiu
                 if(Wz_Gatilho_Lista_Cur < Wz_ScrTop) Wz_ScrTop = Wz_Gatilho_Lista_Cur;
                 if(Wz_Gatilho_Lista_Cur > Wz_ScrTop + 1) Wz_ScrTop = Wz_Gatilho_Lista_Cur - 1;
-                if(Wz_Gatilho_Lista_Cur == 4) Wz_ScrTop = 3;
+                if(Wz_Gatilho_Lista_Cur == 3) Wz_ScrTop = 2;
                 Update_OLED();
             }
             if(event_press(PS5_DOWN)) {
-                Wz_Gatilho_Lista_Cur++; if(Wz_Gatilho_Lista_Cur > 4) Wz_Gatilho_Lista_Cur = 0;   // v3za
+                Wz_Gatilho_Lista_Cur++; if(Wz_Gatilho_Lista_Cur > 3) Wz_Gatilho_Lista_Cur = 0;   // v5
                 if(Wz_Gatilho_Lista_Cur < Wz_ScrTop) Wz_ScrTop = Wz_Gatilho_Lista_Cur;
                 if(Wz_Gatilho_Lista_Cur > Wz_ScrTop + 1) Wz_ScrTop = Wz_Gatilho_Lista_Cur - 1;
                 if(Wz_Gatilho_Lista_Cur == 0) Wz_ScrTop = 0;
@@ -2868,10 +2869,11 @@ main {
             if(Wz_Entrando) { Wz_Entrando = FALSE; }
             // v3zb: sem os campos de RELIG, os tipos encolheram — e o HOLD voltou a
             // caber nas 3 linhas da tela, dispensando a janela deslizante da v3z8.
+            // v5: 0=2CLK 1=TOGGLE 2=HOLD 3=AFTER (o BLOK saiu da posicao 0)
             Work_C = Wz_Gatilho_Lista_Cur;
-            if(Work_C == 3)      Work_D = 2;   // HOLD: botão+tempo+MODO
-            else if(Work_C == 4) Work_D = 1;   // FINAL_AFTER: botão+tempo
-            else                 Work_D = 0;   // BLOQ / 2CLK / TOGGLE: só botão
+            if(Work_C == 2)      Work_D = 2;   // HOLD: botão+tempo+MODO
+            else if(Work_C == 3) Work_D = 1;   // AFTER: botão+tempo
+            else                 Work_D = 0;   // 2CLK / TOGGLE: só botão
             if(event_press(PS5_R1) && !get_ival(PS5_OPTIONS)) {
                 Commit_Wz_Gatilho(WzSlot);
                 MenuDin = 102; Wz_SubCursor = 0; Wz_Entrando = TRUE;
@@ -2886,26 +2888,24 @@ main {
             if(event_press(PS5_DOWN)) { Wz_SubCursor++; if(Wz_SubCursor > Work_D) Wz_SubCursor = 0; Update_OLED(); }
             if(event_press(PS5_LEFT)) {
                 if(Wz_SubCursor == 0) {
-                    if(Work_C == 0)      { Wz_Gatilho_Bloq_Btn--;   if(Wz_Gatilho_Bloq_Btn < 0)   Wz_Gatilho_Bloq_Btn = 16; }
-                    else if(Work_C == 1) { Wz_Gatilho_Duplo_Btn--;  if(Wz_Gatilho_Duplo_Btn < 0)  Wz_Gatilho_Duplo_Btn = 16; }
-                    else if(Work_C == 2) { Wz_Gatilho_Final_Btn--;  if(Wz_Gatilho_Final_Btn < 0)  Wz_Gatilho_Final_Btn = 16; }
-                    else if(Work_C == 3) { Wz_Gatilho_Hphold_Btn--; if(Wz_Gatilho_Hphold_Btn < 0) Wz_Gatilho_Hphold_Btn = 16; }
+                    if(Work_C == 0)      { Wz_Gatilho_Duplo_Btn--;  if(Wz_Gatilho_Duplo_Btn < 0)  Wz_Gatilho_Duplo_Btn = 16; }
+                    else if(Work_C == 1) { Wz_Gatilho_Final_Btn--;  if(Wz_Gatilho_Final_Btn < 0)  Wz_Gatilho_Final_Btn = 16; }
+                    else if(Work_C == 2) { Wz_Gatilho_Hphold_Btn--; if(Wz_Gatilho_Hphold_Btn < 0) Wz_Gatilho_Hphold_Btn = 16; }
                     else                 { Wz_Gatilho_FA_Btn--;     if(Wz_Gatilho_FA_Btn < 0)     Wz_Gatilho_FA_Btn = 16; }
-                } else if(Wz_SubCursor == 1 && Work_C == 3) { Wz_Gatilho_Hphold_Tempo--; if(Wz_Gatilho_Hphold_Tempo < 0) Wz_Gatilho_Hphold_Tempo = 62; }
-                else if(Wz_SubCursor == 2 && Work_C == 3)   { Wz_Gatilho_Hold_Modo = !Wz_Gatilho_Hold_Modo; }
-                else if(Wz_SubCursor == 1 && Work_C == 4)   { Wz_Gatilho_FA_Tempo--; if(Wz_Gatilho_FA_Tempo < 0) Wz_Gatilho_FA_Tempo = 62; }
+                } else if(Wz_SubCursor == 1 && Work_C == 2) { Wz_Gatilho_Hphold_Tempo--; if(Wz_Gatilho_Hphold_Tempo < 0) Wz_Gatilho_Hphold_Tempo = 62; }
+                else if(Wz_SubCursor == 2 && Work_C == 2)   { Wz_Gatilho_Hold_Modo = !Wz_Gatilho_Hold_Modo; }
+                else if(Wz_SubCursor == 1 && Work_C == 3)   { Wz_Gatilho_FA_Tempo--; if(Wz_Gatilho_FA_Tempo < 0) Wz_Gatilho_FA_Tempo = 7; }
                 Update_OLED();
             }
             if(event_press(PS5_RIGHT)) {
                 if(Wz_SubCursor == 0) {
-                    if(Work_C == 0)      { Wz_Gatilho_Bloq_Btn++;   if(Wz_Gatilho_Bloq_Btn > 16)   Wz_Gatilho_Bloq_Btn = 0; }
-                    else if(Work_C == 1) { Wz_Gatilho_Duplo_Btn++;  if(Wz_Gatilho_Duplo_Btn > 16)  Wz_Gatilho_Duplo_Btn = 0; }
-                    else if(Work_C == 2) { Wz_Gatilho_Final_Btn++;  if(Wz_Gatilho_Final_Btn > 16)  Wz_Gatilho_Final_Btn = 0; }
-                    else if(Work_C == 3) { Wz_Gatilho_Hphold_Btn++; if(Wz_Gatilho_Hphold_Btn > 16) Wz_Gatilho_Hphold_Btn = 0; }
+                    if(Work_C == 0)      { Wz_Gatilho_Duplo_Btn++;  if(Wz_Gatilho_Duplo_Btn > 16)  Wz_Gatilho_Duplo_Btn = 0; }
+                    else if(Work_C == 1) { Wz_Gatilho_Final_Btn++;  if(Wz_Gatilho_Final_Btn > 16)  Wz_Gatilho_Final_Btn = 0; }
+                    else if(Work_C == 2) { Wz_Gatilho_Hphold_Btn++; if(Wz_Gatilho_Hphold_Btn > 16) Wz_Gatilho_Hphold_Btn = 0; }
                     else                 { Wz_Gatilho_FA_Btn++;     if(Wz_Gatilho_FA_Btn > 16)     Wz_Gatilho_FA_Btn = 0; }
-                } else if(Wz_SubCursor == 1 && Work_C == 3) { Wz_Gatilho_Hphold_Tempo++; if(Wz_Gatilho_Hphold_Tempo > 62) Wz_Gatilho_Hphold_Tempo = 0; }
-                else if(Wz_SubCursor == 2 && Work_C == 3)   { Wz_Gatilho_Hold_Modo = !Wz_Gatilho_Hold_Modo; }
-                else if(Wz_SubCursor == 1 && Work_C == 4)   { Wz_Gatilho_FA_Tempo++; if(Wz_Gatilho_FA_Tempo > 62) Wz_Gatilho_FA_Tempo = 0; }
+                } else if(Wz_SubCursor == 1 && Work_C == 2) { Wz_Gatilho_Hphold_Tempo++; if(Wz_Gatilho_Hphold_Tempo > 62) Wz_Gatilho_Hphold_Tempo = 0; }
+                else if(Wz_SubCursor == 2 && Work_C == 2)   { Wz_Gatilho_Hold_Modo = !Wz_Gatilho_Hold_Modo; }
+                else if(Wz_SubCursor == 1 && Work_C == 3)   { Wz_Gatilho_FA_Tempo++; if(Wz_Gatilho_FA_Tempo > 7) Wz_Gatilho_FA_Tempo = 0; }
                 Update_OLED();
             }
         }
@@ -3419,7 +3419,6 @@ function Swap_Pos(a, b) {
     Swp_T = Get_F1_Excl(a);  Set_F1_Excl(a,  Get_F1_Excl(b));  Set_F1_Excl(b,  Swp_T);
     Swp_T = Get_F1_Assoc(a); Set_F1_Assoc(a, Get_F1_Assoc(b)); Set_F1_Assoc(b, Swp_T);
     Swp_T = Get_F1_Bloq(a);  Set_F1_Bloq(a,  Get_F1_Bloq(b));  Set_F1_Bloq(b,  Swp_T);
-    Swp_T = Get_FA_Cfg(a);   Set_FA_Cfg(a,   Get_FA_Cfg(b));   Set_FA_Cfg(b,   Swp_T);
     Swp_T = Get_GT_Relig(a); Set_GT_Relig(a, Get_GT_Relig(b)); Set_GT_Relig(b, Swp_T);
     // as referencias de TODOS os slots passam a apontar para as posicoes novas.
     // Roda DEPOIS da troca de conteudo: as mascaras ja trocaram junto com seus donos,
@@ -3543,7 +3542,6 @@ function Zero_F1_Behavior(pos) {
     Set_Cond_ThrIn(pos, 1);   // 5
     Set_Cond_ThrOut(pos, 0);  // OFF (já era o default correto via bit cru)
     Set_Cond_Dir(pos, 1);     // ABS
-    Set_FA_Cfg(pos, 39);  // v3zc: idx39 = 1000ms na tabela de 63
     Set_GT_Relig(pos, 0); // v3: RELIG do 2CLK em RAM — default NÃO
     Set_Hold_Modo(pos, 0);  // v3z8: default APOS (comportamento classico)
 }
@@ -3555,7 +3553,6 @@ function Compact_Pos(dst, src) {
     Set_F1_Excl(dst,  Get_F1_Excl(src));
     Set_F1_Assoc(dst, Get_F1_Assoc(src));
     Set_F1_Bloq(dst,  Get_F1_Bloq(src));
-    Set_FA_Cfg(dst, Get_FA_Cfg(src));   // v3: tempo do FINAL_AFTER (RAM)
     Set_GT_Relig(dst, Get_GT_Relig(src)); // v3: trava do ESTATC (bit1) — estado volatil
     // v3zb: o Hold_Relig saiu — nao ha mais nada indexado por POSICAO fora dos SPVARs,
     // entao a compactacao da delecao ficou mais simples.
@@ -3715,7 +3712,6 @@ function Load_Wz(num) {
     Snap_A  = Get_Spvar_A(num);
     Snap_B  = Get_Spvar_B(num);
     Snap_C  = Get_Spvar_C(num);
-    Snap_FA = Get_FA_Cfg(num);
     Snap_EX = Get_F1_Excl(num);
     Snap_AS = Get_F1_Assoc(num);
     Snap_BL = Get_F1_Bloq(num);
@@ -3807,8 +3803,7 @@ function Commit_Wz(num) {
     // ter mexido em nada deixa a instancia como estava — inclusive mantendo o E de quem
     // ja estava salva, que era o outro efeito indesejado do comportamento anterior.
     if(Get_Spvar_A(num)   != Snap_A  || Get_Spvar_B(num)  != Snap_B  ||
-       Get_Spvar_C(num)   != Snap_C  || Get_FA_Cfg(num)   != Snap_FA ||
-       Get_F1_Excl(num)   != Snap_EX ||
+       Get_Spvar_C(num)   != Snap_C  || Get_F1_Excl(num)   != Snap_EX ||
        Get_F1_Assoc(num)  != Snap_AS || Get_F1_Bloq(num)  != Snap_BL) {
         Cfg_Ram   = Cfg_Ram   |  (1 << (num - 1));
         Cfg_Salvo = Cfg_Salvo & (~(1 << (num - 1)));
@@ -3816,8 +3811,7 @@ function Commit_Wz(num) {
         // v3z9: mudou -> deixa de estar "salva e limpa". Sem isto, alterar uma instancia
         // ja gravada mantinha o E e escondia que havia mudanca pendente.
         Snap_A = Get_Spvar_A(num); Snap_B = Get_Spvar_B(num); Snap_C = Get_Spvar_C(num);
-        Snap_FA = Get_FA_Cfg(num);
-        Snap_EX = Get_F1_Excl(num); Snap_AS = Get_F1_Assoc(num); Snap_BL = Get_F1_Bloq(num);
+            Snap_EX = Get_F1_Excl(num); Snap_AS = Get_F1_Assoc(num); Snap_BL = Get_F1_Bloq(num);
     }
 }
 // =============================================================
@@ -4187,10 +4181,12 @@ function Set_Turbo_Modo(num, v) {
 function Load_Wz_Fonte(num) {
     Wz_Fonte_Tipo    = Get_Fonte_Tipo(num);
     Wz_Fonte_Passivo = Get_Fonte_Passivo(num);
+    Wz_Delay         = Get_Delay(num);
 }
 function Commit_Wz_Fonte(num) {
     Set_Fonte_Tipo(num,    Wz_Fonte_Tipo);
     Set_Fonte_Passivo(num, Wz_Fonte_Passivo);
+    Set_Delay(num,         Wz_Delay);
 }
 function Load_Wz_Cond(num) {
     Wz_Cond_Mult   = Get_Cond_Mult(num);
@@ -4264,7 +4260,6 @@ function Mod_Row_To_Inst(row_idx) {
 }
 // --- Load/Commit do wizard (GATILHO+BTN_FN v3) ---
 function Load_Wz_Gatilho(num) {
-    Wz_Gatilho_Bloq_Btn     = Get_Gatilho_Bloq_Btn(num);
     Wz_Gatilho_Hphold_Btn   = Get_Gatilho_Hphold_Btn(num);
     Wz_Gatilho_Hphold_Tempo = Get_Gatilho_Hphold_Tempo(num);
     Wz_Gatilho_Hold_Modo    = Get_Hold_Modo(num);
@@ -4274,7 +4269,6 @@ function Load_Wz_Gatilho(num) {
     Wz_Gatilho_FA_Tempo     = Get_FA_Tempo(num);
 }
 function Commit_Wz_Gatilho(num) {
-    Set_Gatilho_Bloq_Btn(num,     Wz_Gatilho_Bloq_Btn);
     Set_Gatilho_Hphold_Btn(num,   Wz_Gatilho_Hphold_Btn);
     Set_Gatilho_Hphold_Tempo(num, Wz_Gatilho_Hphold_Tempo);
     Set_Hold_Modo(num,            Wz_Gatilho_Hold_Modo);
@@ -4482,6 +4476,14 @@ function Update_OLED() {
         if(Wz_SubCursor == 1) print(2, 27, 0, 1, SCR_SEL[0]);
         if(Wz_Fonte_Passivo) print(10, 27, 0, 1, F1_PASSIV[0]);
         else                 print(10, 27, 0, 1, F1_ATIVO[0]);
+        // v5: o DELAY vive na tela do ALFA porque e sobre QUANDO a resposta comeca —
+        // mas vale para qualquer caminho de acionamento, nao so o da fonte.
+        if(Wz_SubCursor == 2) print(2, 39, 0, 1, SCR_SEL[0]);
+        print(10, 39, 0, 1, DLY_LBL[0]);
+        if(Wz_Delay == 0) print(70, 39, 0, 1, DLY_0[0]);
+        if(Wz_Delay == 1) print(70, 39, 0, 1, DLY_1[0]);
+        if(Wz_Delay == 2) print(70, 39, 0, 1, DLY_2[0]);
+        if(Wz_Delay == 3) print(70, 39, 0, 1, DLY_3[0]);
         print(5, FOOTER_Y, 0, 1, NAV_WZ[0]);
         return;
     }
@@ -4519,7 +4521,7 @@ function Update_OLED() {
         Print_Gatilho_Lista_Row(Wz_ScrTop,     ROW0_Y);
         Print_Gatilho_Lista_Row(Wz_ScrTop + 1, ROW1_Y);
         if(Wz_ScrTop > 0) print(120, 14, 0, 1, SCR_UP[0]);   // v3zj: era 13, colava na linha do cabecalho
-        if(Wz_ScrTop + 2 <= 4) print(120, FOOTER_Y, 0, 1, SCR_DN[0]);   // v3za
+        if(Wz_ScrTop + 2 <= 3) print(120, FOOTER_Y, 0, 1, SCR_DN[0]);   // v5
         print(5, FOOTER_Y, 0, 1, NAV_FN[0]);
         return;
     }
@@ -4528,11 +4530,10 @@ function Update_OLED() {
     //----------------------------------------------------------
     if(MenuDin == 103) {
         Work_C = Wz_Gatilho_Lista_Cur;
-        if(Work_C == 0) print(5, 2, 0, 1, FN_BLOQ[0]);
-        if(Work_C == 1) print(5, 2, 0, 1, GTL_DUPLO[0]);
-        if(Work_C == 2) print(5, 2, 0, 1, FN_FINAL[0]);
-        if(Work_C == 3) print(5, 2, 0, 1, GTL_HPHOLD[0]);
-        if(Work_C == 4) print(5, 2, 0, 1, FN_FINAFT[0]);
+        if(Work_C == 0) print(5, 2, 0, 1, GTL_DUPLO[0]);
+        if(Work_C == 1) print(5, 2, 0, 1, FN_FINAL[0]);
+        if(Work_C == 2) print(5, 2, 0, 1, GTL_HPHOLD[0]);
+        if(Work_C == 3) print(5, 2, 0, 1, FN_FINAFT[0]);
         Print_Inst_Label(WzSlot, 78, 2);
         rect_oled(0, 11, 128, 1, 0, 1);
         // v3zk: linhas em 13/27/41 (eram 13/32/46). Com o FOOTER_Y descido para 52, a
@@ -4545,20 +4546,19 @@ function Update_OLED() {
         // Print_Hold_Campo faz o desenho de um campo numa altura; os demais tipos de
         // gatilho seguem com o layout fixo de antes, intocados.
         if(Wz_SubCursor == 0) print(2, 13, 0, 1, SCR_SEL[0]);
-        if(Work_C == 0) Print_Gatilho_Btn(15, 13, Wz_Gatilho_Bloq_Btn);
-        if(Work_C == 1) Print_Gatilho_Btn(15, 13, Wz_Gatilho_Duplo_Btn);
-        if(Work_C == 2) Print_Gatilho_Btn(15, 13, Wz_Gatilho_Final_Btn);
-        if(Work_C == 3) Print_Gatilho_Btn(15, 13, Wz_Gatilho_Hphold_Btn);
-        if(Work_C == 4) Print_Gatilho_Btn(15, 13, Wz_Gatilho_FA_Btn);
+        if(Work_C == 0) Print_Gatilho_Btn(15, 13, Wz_Gatilho_Duplo_Btn);
+        if(Work_C == 1) Print_Gatilho_Btn(15, 13, Wz_Gatilho_Final_Btn);
+        if(Work_C == 2) Print_Gatilho_Btn(15, 13, Wz_Gatilho_Hphold_Btn);
+        if(Work_C == 3) Print_Gatilho_Btn(15, 13, Wz_Gatilho_FA_Btn);
         // Linha 1: tempo (HOLD/FINAL_AFTER) ou RELIG (FINALIZA/2CLK) — cadeia else-if única
-        if(Work_C == 3) {
+        if(Work_C == 2) {
             if(Wz_SubCursor == 1) print(2, 27, 0, 1, SCR_SEL[0]);
             print(10, 27, 0, 1, GTL_TMP_LBL[0]);
             Print_Hphold_Tempo(75, 27, Wz_Gatilho_Hphold_Tempo);
-        } else if(Work_C == 4) {
+        } else if(Work_C == 3) {
             if(Wz_SubCursor == 1) print(2, 27, 0, 1, SCR_SEL[0]);
             print(10, 27, 0, 1, FT_LBL[0]);
-            Print_Hphold_Tempo(75, 27, Wz_Gatilho_FA_Tempo);
+            Print_After_Val(75, 27, Wz_Gatilho_FA_Tempo);
         }
         // Linha 2: RELIG (FINAL_AFTER e HOLD) — cadeia else-if única
         // CORRIGIDO: Print_Hphold_Tempo (chamada na Linha 1 acima) usa Work_C como rascunho
@@ -4570,7 +4570,7 @@ function Update_OLED() {
         // continua obrigatorio: Print_Hphold_Tempo, chamada na linha acima, usa Work_C
         // como rascunho dos digitos decimais.
         Work_C = Wz_Gatilho_Lista_Cur;
-        if(Work_C == 3) {
+        if(Work_C == 2) {
             if(Wz_SubCursor == 2) print(2, 41, 0, 1, SCR_SEL[0]);
             print(10, 41, 0, 1, HOLD_MD_L[0]);
             if(Wz_Gatilho_Hold_Modo) print(75, 41, 0, 1, HOLD_MD_ATE[0]);
@@ -5007,30 +5007,24 @@ function Print_Himds_Lista_Row(idx, y) {
         if(Get_F1_Bloq(WzSlot) != 0) print(115, y, 0, 1, FN_ATIVO[0]);
     }
 }
+// v5: quatro itens — 0=2CLK 1=TOGGLE 2=HOLD 3=AFTER. O BLOK saiu.
 function Print_Gatilho_Lista_Row(idx, y) {
     if(idx == Wz_Gatilho_Lista_Cur) print(2, y, 0, 1, SCR_SEL[0]);
-    if(idx == 0) {
-        print(10, y, 0, 1, FN_BLOQ[0]);
-        if(Wz_Gatilho_Bloq_Btn != 0) print(115, y, 0, 1, FN_ATIVO[0]);
-    }
-    if(idx == 1) {
-        print(10, y, 0, 1, GTL_DUPLO[0]);
-        if(Wz_Gatilho_Duplo_Btn != 0) print(115, y, 0, 1, FN_ATIVO[0]);
-    }
-    if(idx == 2) {
-        print(10, y, 0, 1, FN_FINAL[0]);
-        if(Wz_Gatilho_Final_Btn != 0) print(115, y, 0, 1, FN_ATIVO[0]);
-    }
-    if(idx == 3) {
-        print(10, y, 0, 1, GTL_HPHOLD[0]);
-        if(Wz_Gatilho_Hphold_Btn != 0) print(115, y, 0, 1, FN_ATIVO[0]);
-    }
-    if(idx == 4) {
-        print(10, y, 0, 1, FN_FINAFT[0]);
-        if(Wz_Gatilho_FA_Btn != 0) print(115, y, 0, 1, FN_ATIVO[0]);
-    }
-    // v3za: o item INIC saiu desta lista — vive agora na tela da FONTE, onde a decisao
-    // "quem manda" fica junto do que ela governa.
+    if(idx == 0) { print(10, y, 0, 1, GTL_DUPLO[0]);  if(Wz_Gatilho_Duplo_Btn)  print(115, y, 0, 1, FN_ATIVO[0]); }
+    if(idx == 1) { print(10, y, 0, 1, FN_FINAL[0]);   if(Wz_Gatilho_Final_Btn)  print(115, y, 0, 1, FN_ATIVO[0]); }
+    if(idx == 2) { print(10, y, 0, 1, GTL_HPHOLD[0]); if(Wz_Gatilho_Hphold_Btn) print(115, y, 0, 1, FN_ATIVO[0]); }
+    if(idx == 3) { print(10, y, 0, 1, FN_FINAFT[0]);  if(Wz_Gatilho_FA_Btn)     print(115, y, 0, 1, FN_ATIVO[0]); }
+}
+// v5: valor do tempo do AFTER — tabela propria de 8 valores, agora persistente.
+function Print_After_Val(x, y, idx) {
+    if(idx == 0) print(x, y, 0, 1, AFT_0[0]);
+    if(idx == 1) print(x, y, 0, 1, AFT_1[0]);
+    if(idx == 2) print(x, y, 0, 1, AFT_2[0]);
+    if(idx == 3) print(x, y, 0, 1, AFT_3[0]);
+    if(idx == 4) print(x, y, 0, 1, AFT_4[0]);
+    if(idx == 5) print(x, y, 0, 1, AFT_5[0]);
+    if(idx == 6) print(x, y, 0, 1, AFT_6[0]);
+    if(idx == 7) print(x, y, 0, 1, AFT_7[0]);
 }
 // ===== V3-e: impressão numérica dígito-a-dígito (reaproveita TH_00="0" e CIC_1-9="1".."9") =====
 function Print_Digito(x, y, d) {
@@ -5228,7 +5222,12 @@ function ler(){try{
     // aberta, entao os nulls sao descartados e o que faltava ganha valor padrao.
     d.jogos=d.jogos.filter(function(x){return x&&x.mods});
     d.jogos.forEach(function(x){if(x.noZen===undefined)x.noZen=false;
-      x.mods.forEach(function(mm){if(mm.nota===undefined)mm.nota=''});
+      x.mods.forEach(function(mm){
+        if(mm.nota===undefined)mm.nota='';
+        // v5: o GAMA BLOK saiu e o DELAY entrou; o AFTER passou de 63 para 8 valores.
+        if(mm.delay===undefined)mm.delay=0;
+        if(mm.gBlok!==undefined)delete mm.gBlok;
+        if(mm.gAfterT>7)mm.gAfterT=5;});
       x.cores=x.cores.map(function(v){return v>=CORES.length?0:v})});
   }
   return d}catch(e){return null}}
@@ -5246,6 +5245,8 @@ var MULT=['x0.1','x0.2','x0.3','x0.4','x0.5','x0.6','x0.7','x0.8','x0.9','x1.0',
   'x1.1','x1.2','x1.3','x1.4','x1.5','x1.6','x1.7','x1.8','x1.9'];
 var THR=['0','5','10','15','20','25','30','35','40','45','50','55','60','65','70','75','80','85','90','95','100'];
 var TPASSO=['30ms','50ms','70ms','100ms','150ms','250ms','500ms','1.0s'];
+var TDELAY=['200ms','400ms','700ms','1.2s'];
+var TAFTER=['50ms','100ms','150ms','200ms','300ms','500ms','1.0s','2.0s'];
 var TLAT=['10ms','20ms','30ms','40ms','50ms','60ms','80ms','100ms','120ms','150ms',
   '200ms','250ms','350ms','500ms','750ms','1.0s'];
 var THOLD=(function(){var v=[],i;
@@ -5265,7 +5266,7 @@ var CORES=[
   ['Branco fraco',1,1,1,0,'#5a6472'],['Branco medio',2,2,2,0,'#a3b0c0'],['Branco brilhante',3,3,3,0,'#eef4fb']];
 
 function modVazio(){return{nota:'',d1:0,d2:0,d3:0,d4:0,fonte:0,passivo:0,mult:9,tin:1,tout:0,dir:1,
-  gBlok:0,g2clk:0,gTog:0,gHold:0,gHoldT:25,gHoldM:0,gAfter:0,gAfterT:39,
+  delay:0,g2clk:0,gTog:0,gHold:0,gHoldT:25,gHoldM:0,gAfter:0,gAfterT:5,
   tipo:0,dst:[0,0,0,0],tmp:[3,3,3,3],lat:4,modo:0,ciclos:0,excl:[],assoc:[],bloq:[]}}
 function jogoVazio(){var m=[],i;for(i=0;i<21;i++)m.push(modVazio());
   return{nome:'',cores:[3,6,9,12],noZen:false,mods:m}}
@@ -5284,14 +5285,13 @@ function temGatilhoEstado(m){return m.g2clk||m.gTog||m.gHold||m.gAfter}
 // O que NAO sobrevive ao reinicio: as relacoes ZETA e o tempo do GAMA AFTER.
 // Vivem em RAM por decisao de projeto — nao ha bits na EEPROM para eles.
 function temVolatil(m){
+  // v5: o tempo do AFTER passou a ser persistente. So o ZETA continua em RAM.
   if(m.excl.length||m.assoc.length||m.bloq.length)return 1;
-  if(m.gAfter&&m.gAfterT!==39)return 1;
   return 0}
 function listaVolatil(m){var v=[];
   if(m.bloq.length)v.push('ZETA BLOQ');
   if(m.excl.length)v.push('ZETA EXCL');
   if(m.assoc.length)v.push('ZETA ASSOC');
-  if(m.gAfter&&m.gAfterT!==39)v.push('tempo do GAMA AFTER');
   return v}
 function temDestino(m){return m.dst.some(function(d){return d>0})}
 // Troca dois MODs de posicao. Alem de trocar o conteudo, REINDEXA as relacoes ZETA de
@@ -5303,7 +5303,7 @@ function trocaMod(j,a,b){
     ['excl','assoc','bloq'].forEach(function(k){
       m[k]=m[k].map(function(x){return x===a?b:(x===b?a:x)})})})}
 function nomeMod(j,i){var m=j.mods[i];
-  if(!m.fonte&&!m.gBlok&&!temGatilhoEstado(m)&&!temDestino(m))return null;
+  if(!m.fonte&&!temGatilhoEstado(m)&&!temDestino(m))return null;
   return'MOD_'+String(i+1).padStart(2,'0')}
 // Troca dois MODs de posicao e reindexa TODAS as referencias ZETA — a mesma operacao
 // que o L2+UP/DOWN faz no SigRouter. Sem a reindexacao, um MOD que apontava para o
@@ -5353,7 +5353,15 @@ function resumo(j,i){
 
   // o que faz
   if(m.tipo===0)p.push('DELTA DIRECT: '+alvo+' <em>acompanha</em> a entrada.');
-  else if(m.tipo===1)p.push('DELTA STATIC: <em>trava</em> '+alvo+' até que um GAMA ou ZETA desligue.');
+  else if(m.tipo===1){
+    // Só cita quem realmente pode desligar este MOD. Antes a frase era fixa e mencionava
+    // GAMA mesmo num MOD sem gatilho nenhum — o Daniel pegou isso no MOD_03 do FIFA.
+    var qd=[];
+    if(temGatilhoEstado(m))qd.push('um GAMA');
+    if(m.bloq.length||m.excl.length||m.assoc.length)qd.push('um ZETA');
+    if(qd.length)p.push('DELTA STATIC: <em>trava</em> '+alvo+' até que '+qd.join(' ou ')+' desligue.');
+    else p.push('DELTA STATIC: <em>trava</em> '+alvo+' — e nada configurado o desliga.');
+  }
   else{
     var seq=m.dst.map(function(d,k){return d?DESTINOS[d]+' por '+TPASSO[m.tmp[k]]:null})
       .filter(function(x){return x});
@@ -5366,7 +5374,7 @@ function resumo(j,i){
     p.push('Havendo ALFA, o GAMA <em>só desliga</em> — o ALFA religa.');
   if(cat==='nenhuma'&&m.tipo===0&&temGatilhoEstado(m))
     p.push('DIRECT sem ALFA <em>encerra ao soltar</em> o botão, então cada toque aciona de novo.');
-  if(m.gBlok)p.push('GAMA BLOK: segurar <em>'+BOTOES[m.gBlok]+'</em> suspende enquanto pressionado.');
+  if(m.delay)p.push('DELAY: a resposta só sobe <em>'+TDELAY[m.delay]+'</em> depois de ser acionada.');
   if(m.passivo&&cat!=='nenhuma')p.push('PASSIVO: a entrada e os botões do GAMA <em>não chegam ao jogo</em>.');
   if(m.bloq.length)p.push('ZETA BLOQ: fica <em>suspenso</em> enquanto '+listaAlvos(m.bloq)+' responder.');
   if(m.excl.length)p.push('ZETA EXCL: é <em>encerrado</em> quando '+listaAlvos(m.excl)+' sobe.');
@@ -5381,8 +5389,7 @@ function alertas(j,i){
   if(!temDestino(m))A.push('DELTA sem saída: o MOD não produz nada.');
   if(cat==='nenhuma'&&!temGatilhoEstado(m)&&!m.assoc.length&&temDestino(m))
     A.push('Sem ALFA, sem GAMA que ligue e sem ZETA ASSOC — inerte para sempre.');
-  if(cat==='nenhuma'&&!temGatilhoEstado(m)&&m.gBlok&&!m.assoc.length)
-    A.push('Só o GAMA BLOK está configurado, e ele não liga o MOD — nunca sobe.');
+
   if(m.tout>0&&m.tin===m.tout)
     A.push('THR_IN igual ao THR_OUT: janela de largura zero, praticamente nunca responde.');
   // alvos de outro driver
@@ -5454,7 +5461,8 @@ function spvars(m){
   B|=((m.tin*20+m.tout)&511)<<6;
   B|=(m.gHoldM?1:0)<<15;
   B|=(m.gHoldT&63)<<16;
-  B|=(m.gBlok&31)<<22;
+  B|=(m.delay&3)<<22;
+  B|=(m.gAfterT&7)<<24;
   B|=(m.modo&3)<<27;
   B|=((pt>>7)&7)<<29;
   C|=(m.gHold&31);
@@ -5694,6 +5702,7 @@ function telaMod(A){
   sa.appendChild(fld('Entrada',sel(m.fonte,FONTES,function(v){m.fonte=v;up()})));
   sa.appendChild(fld('Modo',chk(m.passivo,function(v){m.passivo=v?1:0;up()})));
   sa.querySelector('.fld:last-child label').textContent='Passivo';
+  sa.appendChild(fld('Delay',sel(m.delay,TDELAY,function(v){m.delay=v;up()})));
   A.appendChild(sa);
 
   var cat=catFonte(m.fonte);
@@ -5706,7 +5715,6 @@ function telaMod(A){
     A.appendChild(sb)}
 
   var sg=document.createElement('sec');sg.innerHTML='<h2>GAMA</h2>';
-  sg.appendChild(fld('BLOK',sel(m.gBlok,BOTOES,function(v){m.gBlok=v;up()})));
   sg.appendChild(fld('2CLK',sel(m.g2clk,BOTOES,function(v){m.g2clk=v;up()})));
   sg.appendChild(fld('TOGGLE',sel(m.gTog,BOTOES,function(v){m.gTog=v;up()})));
   sg.appendChild(fld('HOLD',sel(m.gHold,BOTOES,function(v){m.gHold=v;up()})));
@@ -5714,7 +5722,7 @@ function telaMod(A){
     sg.appendChild(fld('· tempo',sel(m.gHoldT,THOLD,function(v){m.gHoldT=v;up()})));
     sg.appendChild(fld('· modo',sel(m.gHoldM,['APOS','ATE'],function(v){m.gHoldM=v;up()})))}
   sg.appendChild(fld('AFTER',sel(m.gAfter,BOTOES,function(v){m.gAfter=v;up()})));
-  if(m.gAfter)sg.appendChild(fld('· atraso',sel(m.gAfterT,THOLD,function(v){m.gAfterT=v;up()})));
+  if(m.gAfter)sg.appendChild(fld('· atraso',sel(m.gAfterT,TAFTER,function(v){m.gAfterT=v;up()})));
   A.appendChild(sg);
 
   var sd=document.createElement('sec');sd.innerHTML='<h2>DELTA</h2>';
@@ -5817,8 +5825,6 @@ function telaDados(A){
 
 render();
 
-// Registra o service worker quando servido por http(s). Aberto como arquivo local o
-// navegador nao permite, e o app simplesmente funciona sem a parte offline.
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
   window.addEventListener('load',function(){
     navigator.serviceWorker.register('./sw.js').catch(function(){})})}
