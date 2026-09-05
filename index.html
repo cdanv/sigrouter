@@ -284,7 +284,7 @@ const string LATT_15 = "1.0s";
 const string AFT_0 = "50ms";  const string AFT_1 = "100ms"; const string AFT_2 = "150ms";
 const string AFT_3 = "200ms"; const string AFT_4 = "300ms"; const string AFT_5 = "500ms";
 const string AFT_6 = "1.0s";  const string AFT_7 = "2.0s";
-const string DLY_0 = "200ms"; const string DLY_1 = "400ms";
+const string DLY_0 = "OFF";   const string DLY_1 = "300ms";
 const string DLY_2 = "700ms"; const string DLY_3 = "1.2s";
 const string DLY_LBL = "DELAY:";
 // TURBO labels e modo
@@ -1143,9 +1143,11 @@ function Set_FA_Tempo(num, v) {
     Set_Spvar_B(num, Work_A);
 }
 // v5: tabelas novas. O DELAY atrasa a SUBIDA da resposta; o AFTER conta depois de soltar.
+// v5a: o indice 0 e OFF — sem ele, TODO MOD nasceria com 200ms de atraso, porque zero
+// e o valor de um campo nunca configurado. Foi o Daniel quem pegou isso antes do teste.
 function Delay_Ms(idx) {
-    if(idx == 0) return 200;
-    if(idx == 1) return 400;
+    if(idx == 0) return 0;
+    if(idx == 1) return 300;
     if(idx == 2) return 700;
     return 1200;
 }
@@ -1768,9 +1770,7 @@ function Set_Dly(n, v) {
 // Devolve 1 quando a resposta pode subir; 0 enquanto o atraso corre.
 // O timer zera quando o MOD para de responder, entao a proxima subida recomeca limpo.
 function Delay_Passou(num) {
-    if(Get_Delay(num) == 0 && !((Dly_Arm >> (num - 1)) & 1)) {
-        // idx 0 tambem tem valor (200ms) — a checagem acima e so do ARME, nao do valor
-    }
+    if(Get_Delay(num) == 0) return 1;   // v5a: OFF — responde na hora, sem armar timer
     if(!((Dly_Arm >> (num - 1)) & 1)) {
         Set_Dly(num, Delay_Ms(Get_Delay(num)));
         Dly_Arm = Dly_Arm | (1 << (num - 1));
@@ -5245,7 +5245,7 @@ var MULT=['x0.1','x0.2','x0.3','x0.4','x0.5','x0.6','x0.7','x0.8','x0.9','x1.0',
   'x1.1','x1.2','x1.3','x1.4','x1.5','x1.6','x1.7','x1.8','x1.9'];
 var THR=['0','5','10','15','20','25','30','35','40','45','50','55','60','65','70','75','80','85','90','95','100'];
 var TPASSO=['30ms','50ms','70ms','100ms','150ms','250ms','500ms','1.0s'];
-var TDELAY=['200ms','400ms','700ms','1.2s'];
+var TDELAY=['OFF','300ms','700ms','1.2s'];
 var TAFTER=['50ms','100ms','150ms','200ms','300ms','500ms','1.0s','2.0s'];
 var TLAT=['10ms','20ms','30ms','40ms','50ms','60ms','80ms','100ms','120ms','150ms',
   '200ms','250ms','350ms','500ms','750ms','1.0s'];
