@@ -403,6 +403,16 @@ define MENUDIN_DEL_CONF = 38;    // tela de confirmação de deleção
 //   bits 13-29  DESTINOS — 4 empacotados, 19^4 = 130321
 //   bits 30-31  pack de tempos do combo (bits 10-11 dele)
 // Nao ha bit livre. Qualquer campo novo exige tirar de outro lugar.
+//
+// --- PACK DE TEMPOS DO COMBO — 12 bits, REPARTIDO EM TRES SPVARs ---
+// A auditoria externa apontou, com razao, que nao havia lugar nenhum descrevendo isto
+// por inteiro: quem lia o mapa de um SPVAR nao tinha como saber onde estava o resto.
+//   valor = ((((t4 * 8) + t3) * 8 + t2) * 8) + t1     0..4095, 4 tempos de 8 valores
+//   bits  0-6  -> SPVAR_C, bits 25-31
+//   bits  7-9  -> SPVAR_B, bits 29-31
+//   bits 10-11 -> SPVAR_A, bits 30-31
+// Encapsulado em Get_Combo_TmpPack / Set_Combo_TmpPack — nada fora delas deve montar
+// ou desmontar este valor a mao.
 define BIT_SLOT_USED     = 0;
 define BIT_S1            = 1;
 define BIT_S2            = 2;
@@ -419,6 +429,8 @@ define SHIFT_F1_DST_TIPO = 11;   // 2 bits
 // Unificando, o layout fica limpo E o ESPELHO deixa de ser necessario: nao ha mais duas
 // representacoes a traduzir na troca de tipo.
 define SHIFT_F1_DST      = 13;   // 17 bits — 4 destinos (0=nenhum, 1-18)
+// [HISTORICO — descreve um layout que NAO existe mais; o DESTINO hoje sao 4 valores
+//  empacotados nos bits 13-29. Ver o mapa de bits.]
 // v3z4: bit 29 do SPVAR_A era o bit 14 da mascara de DESTINO — e o DESTINO reserva 15
 // bits mas so tem 14 destinos reais (0-13). O bit 14 nunca foi setado por ninguem, entao
 // estava livre. Agora abriga o RELIG do FINAL_AFTER, que precisava de exatamente 1 bit
@@ -429,7 +441,8 @@ define SHIFT_F1_DST      = 13;   // 17 bits — 4 destinos (0=nenhum, 1-18)
 // =============================================================
 define SHIFT_FONTE_TIPO    = 5;   // v3zc
 define SHIFT_FONTE_PASSIVO = 10;  // v3zc
-// v3za: o RELIG DA FONTE FOI REMOVIDO. O bit 12 do SPVAR_A esta livre.
+// v3za: o RELIG DA FONTE FOI REMOVIDO. (O bit que ele ocupava nao esta mais livre —
+// o campo de DESTINO cresceu sobre ele. Ver o mapa de bits, que e a fonte de verdade.)
 // Motivo: existiam DOIS caminhos independentes de religar uma instancia (o RELIG da
 // fonte e o RELIG do gatilho), sem coordenacao entre si — com os dois em SIM, religava
 // quem chegasse primeiro, e isso nao era configuravel, era acidental. Alem disso o INIC
@@ -470,8 +483,8 @@ define FONTE_TOUCH    = 21;  // categoria: botão   (BTN_BIT_TCH=14)
 define FONTE_SHARE    = 22;  // categoria: botão   (BTN_BIT_SHR=15)
 // --- Categorias de fonte (determinam quais condicionais mostrar/aplicar) ---
 define CAT_TOUCH   = 0;   // só MULT
-define CAT_EIXO    = 1;   // MULT+THR_IN+THR_OUT+DIR+INV (bipolar: LX/LY/RX/RY)
-define CAT_GATILHO = 2;   // MULT+THR_IN+THR_OUT+INV, SEM DIR (unipolar: L2/R2)
+define CAT_EIXO    = 1;   // MULT+THR_IN+THR_OUT+DIR (bipolar: LX/LY/RX/RY)
+define CAT_GATILHO = 2;   // MULT+THR_IN+THR_OUT, SEM DIR (unipolar: L2/R2)
 define CAT_BOTAO   = 3;   // sem condicional nenhum
 // --- Condicionais de fonte (v3) — bits do SPVAR_B ---
 // v3z8 RELAYOUT DAS CONDICIONAIS — para abrir o unico bit livre do sistema.
@@ -496,7 +509,6 @@ define SHIFT_COND_PACK    = 0;    // 6 bits — MULT+DIR
 define SHIFT_COND_THR     = 6;    // 9 bits — THR_IN e THR_OUT juntos
 define BIT_HOLD_MODO      = 15;   // 1 bit — 0=APOS (classico), 1=ATE (toque curto)
 // v3zc: HPHOLD_TEMPO caiu de 7 para 6 bits (tabela de 96 -> 63 valores)
-// bit 17 do SPVAR_B: LIVRE
 // --- GATILHO+BTN_FN v3 (Seção 4, botão único p/ tipo) — bits do SPVAR_B (restante) e SPVAR_C ---
 // 5 tipos coexistentes, cada um com 1 botão só (0=nenhum, 1-16=BTN_BIT+1). BTN_HPHOLD tem
 // tempo escalonado (7 bits, tabela de 80 valores). FINAL_AFTER: só o botão é persistente aqui —
@@ -520,7 +532,9 @@ define SHIFT_GATILHO_HPHOLD_TEMPO = 16;  // v3ze: 6 bits — SPVAR_B (bits 16-21
 //     cada reinicio. Agora PERSISTE. Com isso sobra so o ZETA na lista do que nao
 //     sobrevive ao desligamento.
 define SHIFT_DELAY      = 22;   // 2 bits — SPVAR_B (bits 22-23)
-define SHIFT_AFTER_TMP  = 24;   // 3 bits — SPVAR_B (bits 24-26)
+// 'TMP' aqui e TEMPO, nao temporario: este campo E persistente. O nome ficou da
+// epoca em que o tempo do AFTER vivia em RAM.
+define SHIFT_AFTER_TMP  = 24;   // 3 bits — SPVAR_B (bits 24-26), tempo do AFTER
 // SPVAR_B: TURBO_MODO em 27-28 | bits 29-31 LIVRES (viram parte do pack de tempos do COMBO)
 define SHIFT_GATILHO_HPHOLD_BTN   = 0;   // 5 bits — SPVAR_C (bits 0-4)
 // v3zb: TRIO de botoes empacotado — DUPLO, FINAL e FINALAFTER em 13 bits (SPVAR_C 5-17)
@@ -618,7 +632,7 @@ int OLED_Timer           = 0;
 int MenuDin              = 0;
 int MenuCursor           = 0;   // posição do cursor na lista atual (0-based)
 int ScrollTop            = 0;   // primeiro item visível (0-based)
-int WzSlot               = 0;   // instância sendo editada (1-based: 1..25)
+int WzSlot               = 0;   // MOD em edicao (1-based: 1..MAX_INST)
 int Wz_Entrando          = FALSE;
 int Wz_SubCursor         = 0;   // subcursor dentro do passo
 // --- Timers de controle ---
@@ -629,7 +643,7 @@ int Tri_Timer            = 0;   // acumula tempo do TRIANGLE para deletar
 int Flag_Share_Save      = FALSE;
 int Del_Slot             = 0;   // instância sendo deletada (1-based)
 // --- Total de instâncias criadas ---
-int Total_Inst           = 0;   // quantas instâncias existem em RAM (0..25)
+int Total_Inst           = 0;   // quantos MODs existem (0..MAX_INST)
 // --- Variáveis de trabalho (substituem locais — GPC não suporta vars locais) ---
 int Work_A               = 0;
 int Work_B               = 0;
@@ -668,12 +682,12 @@ int Acc_07=0; int Acc_08=0; int Acc_09=0; int Acc_10=0; int Acc_11=0; int Acc_12
 // depois dos eixos justamente para nao deslocar a mascara 0x3C00 que o TURBO usa.
 int Acc_14=0; int Acc_15=0; int Acc_16=0; int Acc_17=0;
 int Acc_Eixo_Tocado=0;
-int Bloq_Mask=0;          // MOD_BLOQ: máscara 16 bits, quem está bloqueado NESTE quadro (calculada 1x/quadro)
+int Bloq_Mask=0;          // MOD_BLOQ: quem esta bloqueado NESTE quadro (calculada 1x por quadro)
 
 int Bloq_Snap_Resp=0;
 int Snap_Orig=0;      // v3zm: copia do snapshot antes das passadas do BLOQ     // MOD_BLOQ: snapshot das respostas de todas as instâncias neste quadro (dedicada, mesmo motivo)
 int Excl_RespAnt=0;       // MOD_EXCL: respostas de cada instância no quadro anterior (p/ detectar a borda de subida)
-int Excl_Veto=0;          // MOD_EXCL: veto próprio (16 bits) — funciona MESMO sem gatilho/finalizador (SEMPRE_ATIVO),
+int Excl_Veto=0;          // MOD_EXCL: veto proprio, um bit por MOD — funciona MESMO sem gatilho/finalizador (SEMPRE_ATIVO),
                           // diferente de Inst_Ativa que é ignorado nesse caso. Limpo por Aplicar_RespOff_Inst.
 int Resp_Off_F2=0;        // FONTE_2: respostas suprimidas (veto próprio, independente de Resp_Off_X/Y)
 
@@ -681,30 +695,32 @@ int Ent_Trava=0;          // v3z1: bit N-1 = instancia N em GATE DE ENTRADA de p
                           // So volta a operar depois que fonte e gatilhos passarem por repouso.
 int Mod_Apto=0;           // v3y: bit N-1 = instancia N pode PARTICIPAR de relacao de MOD
                           // (tem destino marcado E perfil ativo). Usado pelo ASSOC.
-int Assoc_Mask=0;         // MOD_ASSOC: máscara 16 bits — quem está bloqueado neste quadro (nenhum vinculado de pé)
+int Assoc_Mask=0;         // MOD_ASSOC: mascara por MOD (bit N-1 = MOD N) — quem está bloqueado neste quadro (nenhum vinculado de pé)
 
                           // Acc_Eixo_Tocado — máscara 4 bits (bit0=LX bit1=LY bit2=RX bit3=RY) — alguma instância
                          // escreveu neste destino de eixo NESTE QUADRO, mesmo que o valor seja 0.
                          // Distingue "ninguém tocou" (deixa o cru passar) de "o valor É zero de
                          // propósito" (precisa aplicar o zero, senão o cru vaza pela brecha).
 // Gatilhos: estado lig/desl por instância (bit n = instância n+1 ligada) e anti-loop HPHOLD
-int Inst_Ativa = 0;    // máscara 16 bits — instância ativa agora
-int Hp_Travado = 0;    // máscara 16 bits — HPHOLD já alternou, espera soltar
+int Inst_Ativa = 0;    // mascara por MOD (bit N-1 = MOD N) — instância ativa agora
+int Hp_Travado = 0;    // mascara por MOD (bit N-1 = MOD N) — HPHOLD já alternou, espera soltar
 int Hp_Press = 0;      // v3z8: bit N-1 = o botao do BTN_HOLD da instancia N estava
                        // PRESSIONADO no quadro anterior. So o modo ATE precisa disto:
                        // ele valida na SOLTURA, e sem esta memoria todo quadro com o
                        // botao solto dispararia. No modo APOS nao e usado.
 // ESTATC: travamento por instância+eixo (bit n = instância n+1 com eixo travado em 100%)
 // FINALIZA anti-loop (alterna 1x por pressionar, destrava ao soltar)
-int Fz_Travado = 0;    // máscara 16 bits
+int Fz_Travado = 0;    // mascara por MOD (bit N-1 = MOD N)
 
-int Resp_Off_X = 0;    // máscara 16 bits — respostas do EIXO_X individualmente suprimidas (veto por eixo)
-int Resp_Off_Y = 0;    // máscara 16 bits — respostas do EIXO_Y individualmente suprimidas
+int Resp_Off_X = 0;    // mascara por MOD (bit N-1 = MOD N) — respostas do EIXO_X individualmente suprimidas (veto por eixo)
+int Resp_Off_Y = 0;    // mascara por MOD (bit N-1 = MOD N) — respostas do EIXO_Y individualmente suprimidas
 // --- v3: fonte única (substitui os 3 pares antigos de rastreio por eixo/F2 -> 1 par) ---
-int Src_Acima_Fonte = 0;   // máscara 16 bits — fonte estava na zona ativa no ciclo anterior
-int Resp_Off_Fonte  = 0;   // máscara 16 bits — respostas da fonte individualmente suprimidas (veto)
-// RELIG de HOLD/2CLK — RAM (decisão: manter 21 instâncias). bit0=HOLD_RELIG, bit1=DUPLO_RELIG.
-// Default 3 (ambos bits=1="sempre alterna") preserva o comportamento já testado em v3a/b/c.
+int Src_Acima_Fonte = 0;   // mascara por MOD (bit N-1 = MOD N) — fonte estava na zona ativa no ciclo anterior
+int Resp_Off_Fonte  = 0;   // mascara por MOD (bit N-1 = MOD N) — respostas da fonte individualmente suprimidas (veto)
+// v5a: GT_Relig nao guarda mais RELIG nenhum — aquilo virou regra derivada na v3zb.
+// Hoje carrega as TRES travas do STATIC, uma por bit:
+//   bit 1 = travado   bit 2 = destravou pelo teto   bit 3 = sinal negativo do eixo
+// Default 0 = nenhuma trava ativa. E o valor certo; nao "conserte" para 3.
 int GT_Relig_01=0; int GT_Relig_02=0; int GT_Relig_03=0; int GT_Relig_04=0; int GT_Relig_05=0; int GT_Relig_06=0;
 int GT_Relig_07=0; int GT_Relig_08=0; int GT_Relig_09=0; int GT_Relig_10=0; int GT_Relig_11=0; int GT_Relig_12=0;
 int GT_Relig_13=0; int GT_Relig_14=0; int GT_Relig_15=0; int GT_Relig_16=0; int GT_Relig_17=0; int GT_Relig_18=0;
@@ -769,7 +785,6 @@ int Wz_S3 = FALSE; int Wz_S4 = FALSE;
 // =============================================================
 // SEÇÃO 4B — VARIÁVEIS RAM DA FONTE_1 (comportamento)
 // Não salvas na EEPROM — defaults aplicados a cada sessão
-// 25 instâncias × variáveis de comportamento
 // =============================================================
 // === FONTE_1 COMPARTILHADOS (gatilho, BTN_FN, MODs, TAIL, TURBO) ===
 // MOD_ASSOC máscara de modo
@@ -800,7 +815,7 @@ int Wz_Cmb_T1=3; int Wz_Cmb_T2=3; int Wz_Cmb_T3=3; int Wz_Cmb_T4=3;
 int Wz_Mod_Tipo = 0;   // 0=EXCL 1=ASSOC 2=BLOQ
 int Wz_Mod_Sel  = 0;   // máscara sendo editada (bit N-1 = instância N)
 // --- Wizard GATILHO+BTN_FN v3 (Seção 4) — lista de 5 tipos, botão único cada ---
-int Wz_Gatilho_Lista_Cur    = 0;   // cursor da lista (0-5: BLOQ,HPHOLD,DUPLO,FINAL,FINALAFTER,INIC)
+int Wz_Gatilho_Lista_Cur    = 0;   // v5c: cursor da lista (0-3: 2CLK, TOGGLE, HOLD, AFTER)
 int Wz_Delay = 0;   // v5
 int Wz_Gatilho_Hphold_Btn   = 0;
 int Wz_Gatilho_Hphold_Tempo = 0;
@@ -876,7 +891,6 @@ int SR_F1_BLOQ_05=0; int SR_F1_BLOQ_06=0; int SR_F1_BLOQ_07=0; int SR_F1_BLOQ_08
 int SR_F1_BLOQ_09=0; int SR_F1_BLOQ_10=0; int SR_F1_BLOQ_11=0; int SR_F1_BLOQ_12=0;
 int SR_F1_BLOQ_13=0; int SR_F1_BLOQ_14=0; int SR_F1_BLOQ_15=0; int SR_F1_BLOQ_16=0;
 int SR_F1_BLOQ_17=0; int SR_F1_BLOQ_18=0; int SR_F1_BLOQ_19=0; int SR_F1_BLOQ_20=0; int SR_F1_BLOQ_21=0;
-// F2 MODs
 // =============================================================
 // SEÇÃO 5 — INICIALIZAÇÃO
 // =============================================================
@@ -899,13 +913,58 @@ function Salvar_Tudo() {
     Work_N = 1;
     while(Work_N <= 21) { Save_Instance(Work_N); Work_N++; }
 }
+// v5a MIGRACAO DE EEPROM (achado da auditoria externa). Os bits 22-26 do SPVAR_B eram o
+// BOTAO DO BLOK; na v5 sao DELAY (22-23) e AFTER_TMP (24-26). Uma EEPROM gravada antes
+// disso tem valores ali que seriam lidos como DELAY e AFTER — sem erro nem aviso, so
+// comportamento errado. Um BLOK no botao 9, por exemplo, viraria DELAY=1 e AFTER=2, e o
+// MOD passaria a demorar 300ms para responder sem que nada explicasse por que.
+// A migracao zera esses cinco bits uma unica vez e marca a EEPROM como convertida,
+// usando um selo proprio na SPVAR_64 — que ja e o lugar do selo da config do app.
+// v5c CORRIGIDO apos a terceira auditoria. A migracao e o selo do app disputavam a
+// mesma SPVAR_64, e isso abria um caminho de PERDA DE DADOS:
+//   1) o app grava a config      -> SPVAR_64 = Cfg_Selo
+//   2) o usuario ajusta DELAY e AFTER pelo OLED e salva
+//   3) volta a um script sem config do app (Cfg_Selo = 0)
+//   4) no boot, SPVAR_64 nao bate com o selo de migracao -> MIGRA DE NOVO
+//      e a migracao zera justamente os bits do DELAY e do AFTER que ele configurou.
+// Agora a SPVAR_64 e REPARTIDA e cada um tem seu espaco:
+//   bit  0     migracao para o layout da v5 ja feita
+//   bits 1-31  selo da configuracao do app (31 bits)
+// Um nao apaga mais o outro.
+define BIT_MIGRADO_V5 = 1;
+function Selo_Cfg_Gravado() {
+    return (get_pvar(SPVAR_64, -2147483648, 2147483647, 0) >> 1) & 0x7FFFFFFF;
+}
+function Migrado_V5() {
+    return get_pvar(SPVAR_64, -2147483648, 2147483647, 0) & BIT_MIGRADO_V5;
+}
+function Marcar_Selo(migrado, selo) {
+    Work_A = (selo & 0x7FFFFFFF) << 1;
+    if(migrado) Work_A = Work_A | BIT_MIGRADO_V5;
+    set_pvar(SPVAR_64, Work_A);
+}
+function Migrar_V5() {
+    Work_N = 1;
+    while(Work_N <= 21) {
+        if(Get_Spvar_A(Work_N) & 1) {   // so MODs que existem
+            Work_A = Get_Spvar_B(Work_N) & (~(0x1F << 22));
+            Set_Spvar_B(Work_N, Work_A);
+        }
+        Work_N++;
+    }
+    Salvar_Tudo();
+    Marcar_Selo(1, Selo_Cfg_Gravado());   // marca a migracao SEM tocar no selo do app
+}
 init {
     cls_oled(0);
     Load_All();
-    if(Cfg_Selo != 0 && get_pvar(SPVAR_64, -2147483648, 2147483647, 0) != Cfg_Selo) {
+    // A migracao roda UMA VEZ na vida da EEPROM, independente do selo do app.
+    if(!Migrado_V5()) Migrar_V5();
+    // A config do app e aplicada quando o selo do codigo difere do gravado.
+    if(Cfg_Selo != 0 && Selo_Cfg_Gravado() != (Cfg_Selo & 0x7FFFFFFF)) {
         Config_Inicial();
         Salvar_Tudo();
-        set_pvar(SPVAR_64, Cfg_Selo);
+        Marcar_Selo(1, Cfg_Selo);
     }
     Count_Instances();
     Inicializar_Estado();
