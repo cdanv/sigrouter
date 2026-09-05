@@ -2,7 +2,7 @@
 // Guarda os arquivos na primeira visita para o app abrir offline depois.
 // A versão no nome do cache é o que dispara a atualização: ao publicar uma versão
 // nova, troque o número e o navegador descarta o cache antigo sozinho.
-const CACHE = 'sigrouter-v1';
+const CACHE = 'sigrouter-v2';
 const ARQUIVOS = ['./', './index.html', './manifest.json', './icone-192.png', './icone-512.png'];
 
 self.addEventListener('install', e => {
