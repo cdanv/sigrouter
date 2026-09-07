@@ -91,7 +91,7 @@ textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line)
 </head>
 <body>
 <header>
-  <button class="btn sm" id="volta" style="display:none">‹</button>
+  <button class="btn sm" id="volta" style="display:none" aria-label="Voltar">‹</button>
   <h1 id="titulo">SigRouter<span class="sub" id="subtitulo"></span></h1>
   <button class="btn sm" id="acao" style="display:none"></button>
 </header>
@@ -274,12 +274,12 @@ const string TRBT_0 = "30ms";  const string TRBT_1 = "50ms";
 const string TRBT_2 = "70ms";  const string TRBT_3 = "100ms";
 const string TRBT_4 = "150ms"; const string TRBT_5 = "250ms";
 const string TRBT_6 = "500ms"; const string TRBT_7 = "1.0s";
-const string LATT_0  = "10ms";  const string LATT_1  = "20ms";  const string LATT_2  = "30ms";
-const string LATT_3  = "40ms";  const string LATT_4  = "50ms";  const string LATT_5  = "60ms";
-const string LATT_6  = "80ms";  const string LATT_7  = "100ms"; const string LATT_8  = "120ms";
-const string LATT_9  = "150ms"; const string LATT_10 = "200ms"; const string LATT_11 = "250ms";
-const string LATT_12 = "350ms"; const string LATT_13 = "500ms"; const string LATT_14 = "750ms";
-const string LATT_15 = "1.0s";
+const string LATT_0  = "---";    const string LATT_1  = "10ms";  const string LATT_2  = "20ms";
+const string LATT_3  = "30ms";  const string LATT_4  = "40ms";  const string LATT_5  = "50ms";
+const string LATT_6  = "60ms";  const string LATT_7  = "80ms";  const string LATT_8  = "100ms";
+const string LATT_9  = "120ms"; const string LATT_10 = "150ms"; const string LATT_11 = "200ms";
+const string LATT_12 = "250ms"; const string LATT_13 = "350ms"; const string LATT_14 = "500ms";
+const string LATT_15 = "750ms";
 // v5: tabelas do AFTER (8 valores, persistente) e do DELAY (4 valores).
 const string AFT_0 = "50ms";  const string AFT_1 = "100ms"; const string AFT_2 = "150ms";
 const string AFT_3 = "200ms"; const string AFT_4 = "300ms"; const string AFT_5 = "500ms";
@@ -429,16 +429,6 @@ define SHIFT_F1_DST_TIPO = 11;   // 2 bits
 // Unificando, o layout fica limpo E o ESPELHO deixa de ser necessario: nao ha mais duas
 // representacoes a traduzir na troca de tipo.
 define SHIFT_F1_DST      = 13;   // 17 bits — 4 destinos (0=nenhum, 1-18)
-// [HISTORICO — descreve um layout que NAO existe mais; o DESTINO hoje sao 4 valores
-//  empacotados nos bits 13-29. Ver o mapa de bits.]
-// v3z4: bit 29 do SPVAR_A era o bit 14 da mascara de DESTINO — e o DESTINO reserva 15
-// bits mas so tem 14 destinos reais (0-13). O bit 14 nunca foi setado por ninguem, entao
-// estava livre. Agora abriga o RELIG do FINAL_AFTER, que precisava de exatamente 1 bit
-// por instancia. A mascara do DST caiu de 0x7FFF para 0x3FFF (14 bits) — nenhuma perda.
-// v3zc: BIT_F1_INIC removido — o nascimento e derivado de "tem fonte?" (ver
-// Inicializar_Estado). BIT_F1_RELIG e BIT_FA_RELIG ja tinham saido na v3zb.
-// SPVAR_A bit 31: LIVRE
-// =============================================================
 define SHIFT_FONTE_TIPO    = 5;   // v3zc
 define SHIFT_FONTE_PASSIVO = 10;  // v3zc
 // v3za: o RELIG DA FONTE FOI REMOVIDO. (O bit que ele ocupava nao esta mais livre —
@@ -535,6 +525,8 @@ define SHIFT_DELAY      = 22;   // 2 bits — SPVAR_B (bits 22-23)
 // 'TMP' aqui e TEMPO, nao temporario: este campo E persistente. O nome ficou da
 // epoca em que o tempo do AFTER vivia em RAM.
 define SHIFT_AFTER_TMP  = 24;   // 3 bits — SPVAR_B (bits 24-26), tempo do AFTER
+// Leia como AFTER_TEMPO. Renomear exigiria tocar em todos os usos; fica para a proxima
+// revisao que mexer no layout.
 // SPVAR_B: TURBO_MODO em 27-28 | bits 29-31 LIVRES (viram parte do pack de tempos do COMBO)
 define SHIFT_GATILHO_HPHOLD_BTN   = 0;   // 5 bits — SPVAR_C (bits 0-4)
 // v3zb: TRIO de botoes empacotado — DUPLO, FINAL e FINALAFTER em 13 bits (SPVAR_C 5-17)
@@ -931,6 +923,10 @@ function Salvar_Tudo() {
 //   bit  0     migracao para o layout da v5 ja feita
 //   bits 1-31  selo da configuracao do app (31 bits)
 // Um nao apaga mais o outro.
+// VERSAO DO LAYOUT DE BITS. O app precisa gerar para ESTA versao; se um dia os campos
+// mudarem de lugar, incremente aqui E no app, para que os dois nunca divirjam em
+// silencio — que e o unico jeito deste sistema falhar sem dar sinal.
+define LAYOUT_VER = 5;
 define BIT_MIGRADO_V5 = 1;
 function Selo_Cfg_Gravado() {
     return (get_pvar(SPVAR_64, -2147483648, 2147483647, 0) >> 1) & 0x7FFFFFFF;
@@ -1706,21 +1702,43 @@ function Executar_Turbo_Fonte(num) {
         Cmb_P = 1;
         if(!Get_Combo_Dst(num, 1)) Cmb_P = Combo_Prox_Passo(num, 1);
         if(Cmb_P == 0) { Set_TrbSt_X(num, 1 << 16); return; }
-        Work_B = Trb_Tempo_Ms(Get_Combo_Tmp(num, Cmb_P));
-        Work_A = (Work_B & 0x7FF) | (1 << 11) | ((Get_Turbo_Ciclos(num) & 0xF) << 12)
-                 | (1 << 16) | ((Cmb_P - 1) << 17);
-        Set_TrbSt_X(num, Work_A);
+        // v6: havendo passos VAZIOS antes do primeiro configurado, a sequencia arranca
+        // em SILENCIO com a soma dos tempos deles. O passo guardado e o ANTERIOR ao
+        // primeiro configurado, para que o fim do silencio caia no ramo "proximo passo
+        // com destino" que ja existe — sem ramo novo na maquina.
+        if(Cmb_P > 1) {
+            Work_B = Combo_Espera(num, Cmb_P);
+            if(Work_B > 0) {
+                Work_A = (Work_B & 0x7FF) | ((Get_Turbo_Ciclos(num) & 0xF) << 12)
+                         | (1 << 16) | ((Cmb_P - 2) << 17);
+                Set_TrbSt_X(num, Work_A);
+                Work_A = Get_TrbSt_X(num);
+            } else {
+                Work_B = Trb_Tempo_Ms(Get_Combo_Tmp(num, Cmb_P));
+                Work_A = (Work_B & 0x7FF) | (1 << 11) | ((Get_Turbo_Ciclos(num) & 0xF) << 12)
+                         | (1 << 16) | ((Cmb_P - 1) << 17);
+                Set_TrbSt_X(num, Work_A);
+            }
+        } else {
+            Work_B = Trb_Tempo_Ms(Get_Combo_Tmp(num, Cmb_P));
+            Work_A = (Work_B & 0x7FF) | (1 << 11) | ((Get_Turbo_Ciclos(num) & 0xF) << 12)
+                     | (1 << 16) | ((Cmb_P - 1) << 17);
+            Set_TrbSt_X(num, Work_A);
+        }
     } else {
         Work_C = (Work_A >> 12) & 0xF;              // sequencias restantes
         Cmb_P = ((Work_A >> 17) & 0x3) + 1;         // passo atual (1-4)
         if(Get_Turbo_Ciclos(num) == 0 || Work_C > 0) {
             Work_B = (Work_A & 0x7FF) - get_rtime();
             if(Work_B <= 0) {
-                if((Work_A >> 11) & 1) {
+                if(((Work_A >> 11) & 1) && Trb_Lat_Ms(Get_Turbo_Lat(num)) > 0) {
                     // fim do passo LIGADO -> silencio do LAT, mesmo passo
                     Work_B = Trb_Lat_Ms(Get_Turbo_Lat(num));
                     Work_A = (Work_B & 0x7FF) | (Work_C << 12) | (1 << 16) | ((Cmb_P - 1) << 17);
                 } else {
+                    // v6: com LAT em --- a fase de silencio nao existe — o passo termina e
+                    // o proximo emenda direto. Cai neste mesmo ramo de "avancar", que ja
+                    // fazia o trabalho; so o caminho de chegada mudou.
                     // fim do silencio -> proximo passo com destino
                     Cmb_N = Combo_Prox_Passo(num, Cmb_P);
                     if(Cmb_N > 0) {
@@ -1729,17 +1747,32 @@ function Executar_Turbo_Fonte(num) {
                                  | (1 << 16) | ((Cmb_N - 1) << 17);
                     } else {
                         // acabaram os passos: fecha uma SEQUENCIA
+                        // v6a CORRIGIDO: a ESPERA precisa valer em TODA volta, nao so na
+                        // primeira. Como o Daniel colocou, com apenas o P4 configurado a
+                        // soma de P1+P2+P3 E a latencia de entrada dele — e latencia de
+                        // entrada que so acontece uma vez nao e latencia, e atraso de
+                        // partida. Aqui o arranque da volta reusa a mesma logica do
+                        // arranque inicial: se ha passos vazios antes, entra em SILENCIO
+                        // com a soma deles, guardando o passo ANTERIOR ao primeiro
+                        // configurado; senao, liga o passo direto.
                         Cmb_P = 1;
                         if(!Get_Combo_Dst(num, 1)) Cmb_P = Combo_Prox_Passo(num, 1);
+                        Cmb_N = 0;
+                        if(Cmb_P > 1) Cmb_N = Combo_Espera(num, Cmb_P);
                         if(Get_Turbo_Ciclos(num) > 0) {
                             Work_C = Work_C - 1;
                             if(Work_C == 0) {
                                 Work_A = (1 << 16);   // pack "terminado"
+                            } else if(Cmb_N > 0) {
+                                Work_A = (Cmb_N & 0x7FF) | (Work_C << 12)
+                                         | (1 << 16) | ((Cmb_P - 2) << 17);
                             } else {
                                 Work_B = Trb_Tempo_Ms(Get_Combo_Tmp(num, Cmb_P));
                                 Work_A = (Work_B & 0x7FF) | (1 << 11) | (Work_C << 12)
                                          | (1 << 16) | ((Cmb_P - 1) << 17);
                             }
+                        } else if(Cmb_N > 0) {
+                            Work_A = (Cmb_N & 0x7FF) | (1 << 16) | ((Cmb_P - 2) << 17);
                         } else {
                             Work_B = Trb_Tempo_Ms(Get_Combo_Tmp(num, Cmb_P));
                             Work_A = (Work_B & 0x7FF) | (1 << 11) | (1 << 16) | ((Cmb_P - 1) << 17);
@@ -2257,23 +2290,26 @@ function Trb_Tempo_Ms(idx) {
 // CICLOS, que caiu de 11 para 8 valores. Motivo: com CICLO 1, a sequencia so autofinaliza
 // DEPOIS da latencia, entao 50ms era um atraso somado a cada disparo — foi o que o Daniel
 // sentiu no MOD_07 do Mad Max. Com 10ms isso praticamente desaparece.
+// v6: o indice 0 virou OFF (sem latencia) — os passos alternam direto, um emendando no
+// outro. O 1000ms saiu para abrir a vaga: latencia de 1s e rara, e a ESPERA por passos
+// vazios (abaixo) cobre pausas longas com muito mais alcance.
 function Trb_Lat_Ms(idx) {
-    if(idx ==  0) return 10;
-    if(idx ==  1) return 20;
-    if(idx ==  2) return 30;
-    if(idx ==  3) return 40;
-    if(idx ==  4) return 50;
-    if(idx ==  5) return 60;
-    if(idx ==  6) return 80;
-    if(idx ==  7) return 100;
-    if(idx ==  8) return 120;
-    if(idx ==  9) return 150;
-    if(idx == 10) return 200;
-    if(idx == 11) return 250;
-    if(idx == 12) return 350;
-    if(idx == 13) return 500;
-    if(idx == 14) return 750;
-    return 1000;
+    if(idx ==  0) return 0;
+    if(idx ==  1) return 10;
+    if(idx ==  2) return 20;
+    if(idx ==  3) return 30;
+    if(idx ==  4) return 40;
+    if(idx ==  5) return 50;
+    if(idx ==  6) return 60;
+    if(idx ==  7) return 80;
+    if(idx ==  8) return 100;
+    if(idx ==  9) return 120;
+    if(idx == 10) return 150;
+    if(idx == 11) return 200;
+    if(idx == 12) return 250;
+    if(idx == 13) return 350;
+    if(idx == 14) return 500;
+    return 750;
 }
 // Máquina de oscilação do TURBO — EIXO_X (1 ciclo = PERM ligado + LAT desligado)
 // CICLOS=0 (ATIVO): oscila enquanto a fonte está na zona; CICLOS=1-10: N oscilações por
@@ -4223,6 +4259,26 @@ function Set_Combo_Tmp(num, passo, v) {
 }
 // v3ze: proximo passo COM destino, a partir de "de" (1-4). Devolve 0 se nao houver outro —
 // e o sinal de que a sequencia terminou e o ciclo deve ser contabilizado.
+// v6 ESPERA POR ACUMULO (proposta do Daniel). Os passos VAZIOS antes do primeiro
+// configurado deixam de ser simplesmente pulados: os tempos deles SOMAM e viram uma
+// espera antes da sequencia comecar.
+//   P1 vazio(250ms) + P2 CROSS            -> espera 250ms, aciona CROSS
+//   P1 vazio(500) + P2 vazio(1000) + P3   -> espera 1500ms, aciona P3
+// Custo zero: cada passo ja carrega o seu tempo no pack de 12 bits, mesmo sem destino.
+// O tempo estava la, sem uso — agora tem significado.
+// Alcance ate 2,5s, com a granularidade da tabela dos passos — bem mais fino que o
+// campo DELAY, que tem quatro valores fixos. Os dois convivem: o DELAY atrasa a
+// RESPOSTA INTEIRA (vale para os tres tipos); a espera atrasa DENTRO da sequencia.
+function Combo_Espera(num, ate) {
+    Cmb_N = 0;
+    Cmb_Tmp = 1;
+    while(Cmb_Tmp < ate) {
+        Cmb_N = Cmb_N + Trb_Tempo_Ms(Get_Combo_Tmp(num, Cmb_Tmp));
+        Cmb_Tmp = Cmb_Tmp + 1;
+    }
+    if(Cmb_N > 2047) Cmb_N = 2047;   // o timer do TrbSt tem 11 bits
+    return Cmb_N;
+}
 function Combo_Prox_Passo(num, de) {
     Cmb_N = de;
     while(Cmb_N < 4) {
@@ -5306,8 +5362,8 @@ var THR=['0','5','10','15','20','25','30','35','40','45','50','55','60','65','70
 var TPASSO=['30ms','50ms','70ms','100ms','150ms','250ms','500ms','1.0s'];
 var TDELAY=['OFF','300ms','700ms','1.2s'];
 var TAFTER=['50ms','100ms','150ms','200ms','300ms','500ms','1.0s','2.0s'];
-var TLAT=['10ms','20ms','30ms','40ms','50ms','60ms','80ms','100ms','120ms','150ms',
-  '200ms','250ms','350ms','500ms','750ms','1.0s'];
+var TLAT=['---','10ms','20ms','30ms','40ms','50ms','60ms','80ms','100ms','120ms',
+  '150ms','200ms','250ms','350ms','500ms','750ms'];
 var THOLD=(function(){var v=[],i;
   for(i=0;i<=25;i++)v.push(((50+i*10)/1000).toFixed(2)+'s');
   for(i=26;i<=39;i++)v.push(((350+(i-26)*50)/1000).toFixed(2)+'s');
@@ -5424,7 +5480,12 @@ function resumo(j,i){
   else{
     var seq=m.dst.map(function(d,k){return d?DESTINOS[d]+' por '+TPASSO[m.tmp[k]]:null})
       .filter(function(x){return x});
-    p.push('DELTA TURBO: '+seq.join(' → ')+', com '+TLAT[m.lat]+' entre cada.'+
+    // v6: passos vazios ANTES do primeiro configurado viram espera, somando os tempos.
+    var esp=0, ms=[30,50,70,100,150,250,500,1000], k2=0;
+    while(k2<4 && !m.dst[k2]){ esp+=ms[m.tmp[k2]]; k2++; }
+    if(esp)p.push('Espera <em>'+esp+'ms</em> a cada volta — soma dos passos vazios antes do primeiro configurado.');
+    p.push('DELTA TURBO: '+seq.join(' → ')+
+      (m.lat?', com '+TLAT[m.lat]+' entre cada.':', <em>emendados</em> (sem latência).')+
       (m.ciclos?' Repete '+m.ciclos+'× e encerra.':' Repete enquanto acionado.'));
   }
 
@@ -5584,7 +5645,11 @@ function configGpc(j){
     L.push('    SR_A_'+n+'='+s[0]+'; SR_B_'+n+'='+s[1]+'; SR_C_'+n+'='+s[2]+';');
     var ex=maskZeta(m.excl), as=maskZeta(m.assoc), bl=maskZeta(m.bloq);
     if(ex||as||bl)L.push('    SR_F1_EXCL_'+n+'='+ex+'; SR_F1_ASSOC_'+n+'='+as+'; SR_F1_BLOQ_'+n+'='+bl+';');
-    if(m.gAfterT!==39)L.push('    FA_Cfg_'+n+'='+m.gAfterT+';');
+    // v5: NADA de FA_Cfg aqui. O tempo do AFTER virou persistente e ja viaja dentro do
+    // SPVAR_B, montado por spvars(). Esta linha sobreviveu a mudanca e gerava um script
+    // que nao compilava — 'FA_Cfg_01 was not found'. O codificador de bits foi atualizado
+    // na epoca; este gerador de linhas, nao. Sao duas partes do app que precisam andar
+    // juntas, e a licao e essa: ao mexer no layout, conferir AS DUAS.
   }
   L.push('}');
   return L.join('\n')}
@@ -5597,11 +5662,21 @@ function sel(v,arr,cb){var s=document.createElement('select');
   arr.forEach(function(o,k){var e=document.createElement('option');
     e.value=k;e.textContent=o;if(k===v)e.selected=true;s.appendChild(e)});
   s.onchange=function(){cb(+s.value)};return s}
+// Acessibilidade (achado da auditoria): num app que existe POR acessibilidade, um select
+// sem rotulo associado e um botao sem nome sao lidos como "botao" pelo leitor de tela.
+// Aqui o rotulo do campo vira o nome acessivel do controle, inclusive quando o controle
+// e um grupo de botoes.
+var _fldId=0;
 function fld(rot,ctl){var d=document.createElement('div');d.className='fld';
-  d.innerHTML='<label>'+rot+'</label>';var c=document.createElement('div');
-  c.className='ctl';c.appendChild(ctl);d.appendChild(c);return d}
+  _fldId++;var id='f'+_fldId;
+  d.innerHTML='<label id="'+id+'">'+rot+'</label>';
+  var c=document.createElement('div');c.className='ctl';
+  if(ctl.tagName==='SELECT'||ctl.tagName==='INPUT')ctl.setAttribute('aria-labelledby',id);
+  else { c.setAttribute('role','group'); c.setAttribute('aria-labelledby',id); }
+  c.appendChild(ctl);d.appendChild(c);return d}
 function chk(v,cb){var b=document.createElement('button');b.className='btn sm';
   b.textContent=v?'sim':'não';b.style.minWidth='58px';
+  b.setAttribute('role','switch');b.setAttribute('aria-checked',v?'true':'false');
   if(v)b.style.borderColor='var(--azul)';b.onclick=function(){cb(!v)};return b}
 
 function render(){
@@ -5613,6 +5688,7 @@ function render(){
   else if(tela==='mod')telaMod(A);
   else if(tela==='cod')telaCod(A);
   else if(tela==='dados')telaDados(A);
+  else if(tela==='info')telaInfo(A);
 }
 function telaCat(A){
   $('titulo').innerHTML='SigRouter <span class="sub">biblioteca</span>';
@@ -5634,7 +5710,9 @@ function telaCat(A){
   bn.onclick=function(){D.jogos.push(jogoVazio());jg=D.jogos.length-1;tela='jogo';modo='';grava(D);render()};
   var bd=document.createElement('button');bd.className='btn';bd.textContent='Exportar / importar';
   bd.onclick=function(){tela='dados';render()};
-  r.appendChild(bn);r.appendChild(bd);A.appendChild(r);
+  var bi=document.createElement('button');bi.className='btn';bi.textContent='Informações';
+  bi.onclick=function(){tela='info';render()};
+  r.appendChild(bn);r.appendChild(bd);r.appendChild(bi);A.appendChild(r);
   var p=document.createElement('p');p.className='hint';
   p.innerHTML='<b>'+noZen+' de 5</b> gravados no Zen.'+
     (noZen>5?' <span style="color:var(--verm)">Acima do limite.</span>':'')+'<br>'+
@@ -5753,6 +5831,8 @@ function telaMod(A){
   var bx=document.createElement('div');bx.style.display='flex';bx.style.gap='6px';
   [1,2,3,4].forEach(function(k){var b=document.createElement('button');b.className='btn sm';
     b.textContent='D'+k;if(m['d'+k])b.style.borderColor='var(--azul)';
+    b.setAttribute('aria-pressed',m['d'+k]?'true':'false');
+    b.setAttribute('aria-label','Domínio D'+k);
     b.style.opacity=m['d'+k]?1:.45;
     b.onclick=function(){m['d'+k]=m['d'+k]?0:1;up()};bx.appendChild(b)});
   s.appendChild(fld('Ativo em',bx));A.appendChild(s);
@@ -5807,6 +5887,8 @@ function telaMod(A){
       var on=m[r[0]].indexOf(k)>=0;
       var b=document.createElement('button');b.className='btn sm';b.textContent=String(k+1).padStart(2,'0');
       b.style.padding='4px 8px';b.style.opacity=on?1:.4;
+      b.setAttribute('aria-pressed',on?'true':'false');
+      b.setAttribute('aria-label',r[1]+' com MOD '+String(k+1).padStart(2,'0'));
       if(on)b.style.borderColor='var(--azul)';
       b.onclick=function(){var p=m[r[0]].indexOf(k);
         if(p>=0)m[r[0]].splice(p,1);else m[r[0]].push(k);up()};
@@ -5863,6 +5945,71 @@ function telaCod(A){
   bloco('2 · Configuração dos MODs',configGpc(j));
 }
 
+function telaInfo(A){
+  $('titulo').innerHTML='Informações';
+  $('volta').onclick=function(){tela='cat';render()};
+  function bloco(tit, itens){
+    var s=document.createElement('sec');
+    s.innerHTML='<h2>'+tit+'</h2>';
+    itens.forEach(function(p){
+      var d=document.createElement('div');
+      d.style.cssText='padding:9px 0;border-bottom:1px solid var(--line);font-size:14px;line-height:1.55';
+      d.innerHTML='<b style="color:var(--txt)">'+p[0]+'</b><br><span style="color:var(--dim)">'+p[1]+'</span>';
+      s.appendChild(d)});
+    A.appendChild(s)}
+
+  var av=document.createElement('div');av.className='obs';
+  av.innerHTML='<b>Só o ZETA não sobrevive ao reinício.</b> As relações entre MODs vivem '+
+    'em RAM — depois de ligar o Cronus, precisam ser reconfiguradas pelo OLED. Todo o resto '+
+    'é persistente. Os MODs afetados aparecem com a etiqueta RAM na lista.';
+  A.appendChild(av);
+
+  bloco('Abrir e fechar', [
+    ['R1 + OPTIONS','Abre e fecha o menu de configuração (MenuDin).'],
+    ['OPTIONS sozinho','Abre o menu comum. Ele CONGELA os MODs e retoma ao fechar — não reseta nada.'],
+    ['CIRCLE segurado','Na lista de MODs, fecha o menu. Dentro de um MOD, volta um nível.'],
+    ['L1 + L3 · R1 + R3','Troca de domínio. Duplo-clique para D1 e D2; segurar para D3 e D4.']]);
+
+  bloco('Dentro do MOD', [
+    ['X','Confirma em RAM. Aparece o indicador R.'],
+    ['SHARE por 1s','Salva na EEPROM. O indicador vira E.'],
+    ['L1 e R1','Muda de tela.'],
+    ['UP / DOWN e LEFT / RIGHT','Navega e ajusta valores.'],
+    ['SQUARE por 1s','Reseta a página atual.'],
+    ['TRIANGLE por 1s','Deleta o MOD, com confirmação.'],
+    ['L2 + UP / DOWN','Na lista, reordena o MOD. A ordem decide o desempate do bloqueio mútuo.']]);
+
+  bloco('Indicadores da lista', [
+    ['(nada)','MOD aberto, nunca configurado.'],
+    ['R','Alterado e confirmado, ainda não gravado.'],
+    ['M','Gravado por movimentação — reordenar ou deletar. Não foi você que mandou salvar.'],
+    ['E','Salvo por você, sem alteração pendente.']]);
+
+  bloco('Funções escondidas', [
+    ['R2 + duplo DOWN no menu comum','Liga e desliga o touch por completo (FINGER e os eixos X/Y). '+
+     'Ele nasce ligado; o ATIVO/PASSIVO do ALFA já cobre anular caso a caso.'],
+    ['SHARE durante o jogo','É convertido em toque no touchpad, para não abrir a tela de captura.']]);
+
+  bloco('O que não aparece em tela', [
+    ['Nascimento','Com ALFA, o MOD nasce ligado; sem ALFA, nasce desligado. "Ligado" não põe '+
+     'destino no alto — quem decide é a zona ativa.'],
+    ['Comportamento do GAMA','Havendo ALFA, o gatilho só DESLIGA (o ALFA religa). Sem ALFA, ele ALTERNA.'],
+    ['Autoencerramento','DIRECT sem ALFA encerra ao soltar o botão, para um comando momentâneo '+
+     'não exigir dois toques.'],
+    ['MOD órfão','Sem ALFA e sem GAMA, mas com ZETA ASSOC, o MOD sobe junto com o alvo. '+
+     'É como dar um segundo DELTA a um MOD existente.'],
+    ['Relações','Valem de DELTA para DELTA: o que conta é a RESPOSTA estar de pé, nunca o ALFA nem o GAMA.'],
+    ['BLOQ x EXCL','O BLOQ suspende e retoma de onde parou. O EXCL encerra, e a volta é um começo novo.'],
+    ['Espera no TURBO','Passos vazios antes do primeiro configurado somam seus tempos e viram '+
+     'uma espera antes da sequência começar.'],
+    ['Latência em ---','Sem latência, os passos emendam um no outro, sem silêncio entre eles.'],
+    ['STATIC em eixo','Trava no sentido para onde o ALFA foi empurrado. Com DIR ABS, um MOD cobre os dois lados.']]);
+
+  bloco('Limites', [
+    ['21 MODs','96 bits cada, ocupando 63 das 64 SPVARs. Não há bit livre.'],
+    ['5 SigRouter no Cronus','O dispositivo não comporta mais que isso, embora a biblioteca aqui seja ilimitada.'],
+    ['Sem backup no Cronus','Não há como extrair um script depois de gravado. Este app é o seu único registro — exporte de vez em quando.']]);
+}
 function telaDados(A){
   $('titulo').innerHTML='Exportar / importar';
   $('volta').onclick=function(){tela='cat';render()};
@@ -5884,9 +6031,30 @@ function telaDados(A){
 
 render();
 
+// Registra o service worker quando servido por http(s) — aberto como arquivo local o
+// navegador nao permite, e o app funciona sem a parte offline.
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
   window.addEventListener('load',function(){
-    navigator.serviceWorker.register('./sw.js').catch(function(){})})}
+    navigator.serviceWorker.register('./sw.js').then(function(reg){
+      // Avisa quando ha versao nova esperando. Sem isto, quem tem o app instalado pode
+      // seguir dias na versao antiga sem saber — e com o gerador de codigo desatualizado
+      // isso significa gerar script para um layout que o firmware nao usa mais.
+      reg.addEventListener('updatefound',function(){
+        var novo=reg.installing;
+        if(!novo)return;
+        novo.addEventListener('statechange',function(){
+          if(novo.state==='installed' && navigator.serviceWorker.controller){
+            var bar=document.createElement('div');
+            bar.style.cssText='position:fixed;left:0;right:0;bottom:0;z-index:99;'+
+              'background:var(--azul);color:#04101f;padding:13px 16px;font-size:14px;'+
+              'display:flex;align-items:center;gap:12px;font-weight:500';
+            bar.innerHTML='<span style="flex:1">Nova versão disponível.</span>';
+            var b=document.createElement('button');
+            b.textContent='Atualizar';
+            b.style.cssText='background:#04101f;color:#fff;border-radius:8px;padding:7px 14px;font-weight:600';
+            b.onclick=function(){location.reload()};
+            bar.appendChild(b);document.body.appendChild(bar)}})})
+    }).catch(function(){})})}
 </script>
 </body>
 </html>
