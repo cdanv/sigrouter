@@ -899,7 +899,17 @@ int SR_F1_BLOQ_17=0; int SR_F1_BLOQ_18=0; int SR_F1_BLOQ_19=0; int SR_F1_BLOQ_20
 // constante e avisava duas vezes. Como int o valor e o mesmo e o aviso some.
 int Cfg_Selo = 0;
 function Config_Inicial() {
-    // ---- o app escreve aqui ----
+    // ---- o app escreve aqui: os 3 SPVARs de cada MOD (persistente) ----
+}
+// v6b: as relacoes ZETA vivem em RAM e se perdem a cada desligamento — nao ha bits na
+// EEPROM para elas. Ate agora o app as escrevia dentro de Config_Inicial(), que so roda
+// quando o selo nao bate: apareciam no primeiro boot e sumiam no segundo.
+// Separando-as, elas passam a ser reaplicadas em TODO boot. O efeito e o que o Daniel
+// descreveu: a configuracao do app vira o DEFAULT do ZETA para aquele script.
+// Consequencia assumida: alterar o ZETA pelo OLED vale ate desligar; ao ligar, volta ao
+// que o app gerou. Para mudar de vez, mude no app e gere o script de novo.
+function Config_Zeta() {
+    // ---- o app escreve aqui: as mascaras ZETA (RAM, reaplicadas sempre) ----
 }
 function Salvar_Tudo() {
     Work_N = 1;
@@ -962,6 +972,8 @@ init {
         Salvar_Tudo();
         Marcar_Selo(1, Cfg_Selo);
     }
+    // O ZETA e reaplicado SEMPRE — e RAM, entao nao ha o que preservar entre boots.
+    if(Cfg_Selo != 0) Config_Zeta();
     Count_Instances();
     Inicializar_Estado();
     Update_OLED();
@@ -5626,7 +5638,12 @@ function scriptCompleto(j){
   corpo=corpo.slice(corpo.indexOf('function Config_Inicial() {'));
   var a2=t.indexOf('function Config_Inicial() {');
   var b2=t.indexOf('\n}',a2)+2;
-  t=t.slice(0,a2)+corpo+t.slice(b2);
+  var ini=corpo.slice(0, corpo.indexOf('function Config_Zeta() {'));
+  t=t.slice(0,a2)+ini+t.slice(b2);
+  var zeta=corpo.slice(corpo.indexOf('function Config_Zeta() {'));
+  var a3=t.indexOf('function Config_Zeta() {');
+  var b3=t.indexOf('\n}',a3)+2;
+  t=t.slice(0,a3)+zeta+t.slice(b3);
   return t}
 function configGpc(j){
   var L=[],i,n;
@@ -5643,13 +5660,22 @@ function configGpc(j){
     var s=spvars(m);
     L.push('    // MOD_'+n+(m.nota?'  '+m.nota:''));
     L.push('    SR_A_'+n+'='+s[0]+'; SR_B_'+n+'='+s[1]+'; SR_C_'+n+'='+s[2]+';');
-    var ex=maskZeta(m.excl), as=maskZeta(m.assoc), bl=maskZeta(m.bloq);
-    if(ex||as||bl)L.push('    SR_F1_EXCL_'+n+'='+ex+'; SR_F1_ASSOC_'+n+'='+as+'; SR_F1_BLOQ_'+n+'='+bl+';');
     // v5: NADA de FA_Cfg aqui. O tempo do AFTER virou persistente e ja viaja dentro do
     // SPVAR_B, montado por spvars(). Esta linha sobreviveu a mudanca e gerava um script
     // que nao compilava — 'FA_Cfg_01 was not found'. O codificador de bits foi atualizado
     // na epoca; este gerador de linhas, nao. Sao duas partes do app que precisam andar
     // juntas, e a licao e essa: ao mexer no layout, conferir AS DUAS.
+  }
+  L.push('}');
+  // v6b: o ZETA sai para funcao propria, reaplicada a CADA boot. Dentro de
+  // Config_Inicial() ele so valia no primeiro, porque aquela funcao roda uma vez so —
+  // foi o que o Daniel viu ao gravar num Cronus recem-limpo.
+  L.push('function Config_Zeta() {');
+  for(i=0;i<21;i++){
+    var mz=j.mods[i]; n=String(i+1).padStart(2,'0');
+    if(!nomeMod(j,i))continue;
+    var ex=maskZeta(mz.excl), as=maskZeta(mz.assoc), bl=maskZeta(mz.bloq);
+    if(ex||as||bl)L.push('    SR_F1_EXCL_'+n+'='+ex+'; SR_F1_ASSOC_'+n+'='+as+'; SR_F1_BLOQ_'+n+'='+bl+';');
   }
   L.push('}');
   return L.join('\n')}
@@ -5817,7 +5843,7 @@ function telaMod(A){
   A.appendChild(rz);
   if(temVolatil(m)){var dv=document.createElement('div');dv.className='obs';
     dv.innerHTML='<b>Não sobrevive ao reinício:</b> '+listaVolatil(m).join(', ')+
-      '. Vive em RAM — depois de ligar o Cronus, precisa ser configurado pelo OLED.';
+      '. Vive em RAM. Se o script vier deste app, e reaplicado a cada boot; configurando so pelo OLED, se perde ao desligar.';
     A.appendChild(dv)}
   al.O.forEach(function(t){var d=document.createElement('div');d.className='obs';
     d.innerHTML='<b>Atenção:</b> '+t;A.appendChild(d)});
@@ -6031,14 +6057,9 @@ function telaDados(A){
 
 render();
 
-// Registra o service worker quando servido por http(s) — aberto como arquivo local o
-// navegador nao permite, e o app funciona sem a parte offline.
 if('serviceWorker' in navigator && location.protocol.indexOf('http')===0){
   window.addEventListener('load',function(){
     navigator.serviceWorker.register('./sw.js').then(function(reg){
-      // Avisa quando ha versao nova esperando. Sem isto, quem tem o app instalado pode
-      // seguir dias na versao antiga sem saber — e com o gerador de codigo desatualizado
-      // isso significa gerar script para um layout que o firmware nao usa mais.
       reg.addEventListener('updatefound',function(){
         var novo=reg.installing;
         if(!novo)return;
