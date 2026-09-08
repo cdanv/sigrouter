@@ -1,0 +1,17 @@
+{
+  "name": "SigRouter — biblioteca",
+  "short_name": "SigRouter",
+  "description": "Catálogo e configurador dos MODs do SigRouter para Cronus Zen.",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#0d1117",
+  "theme_color": "#0d1117",
+  "lang": "pt-BR",
+  "icons": [
+    { "src": "./icone-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "./icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "./icone-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
