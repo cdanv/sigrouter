@@ -1,7 +1,7 @@
 // Service worker do SigRouter.
 // Guarda os arquivos na primeira visita para o app abrir offline depois.
 // A versao no nome do cache dispara a atualizacao: ao publicar, incremente o numero.
-const CACHE = 'sigrouter-v14';
+const CACHE = 'sigrouter-v15';
 const ARQUIVOS = ['./index.html', './manifest.json', './icone-192.png', './icone-512.png'];
 
 self.addEventListener('install', e => {
