@@ -54,8 +54,8 @@ s{text-decoration:none}
   color:var(--dim);flex:none;border:1px solid var(--line)}
 .tag.al{background:#3a1d1d;color:#ff8f8f;border-color:#5a2a2a}
 .tag.vo{background:#3a2f14;color:var(--amber);border-color:#5a4a20}
-sec{display:block;margin:22px 0 0}
-sec>h2{font-size:17px;font-weight:700;color:var(--azul);margin:0 0 10px;
+section{display:block;margin:22px 0 0}
+section>h2{font-size:17px;font-weight:700;color:var(--azul);margin:0 0 10px;
   padding:9px 0 7px;border-bottom:2px solid var(--azul);letter-spacing:.04em;
   position:sticky;top:53px;background:var(--bg);z-index:5}
 .fld{display:flex;align-items:center;gap:12px;padding:11px 0;border-bottom:1px solid var(--line)}
@@ -447,7 +447,9 @@ define SHIFT_FONTE_PASSIVO = 10;  // v3zc
 //   INIC OFF -> o GATILHO manda: ele arma; a fonte so executa enquanto armada.
 //   sem fonte -> INIC volta ao papel classico (nao ha o que religar) e o gatilho e a fonte.
 // O INIC mudou de TELA (saiu do GATILHO, foi para a FONTE) mas nao mudou de bit: segue
-// no BIT_F1_INIC (30). Quem escrevia o RELIG da fonte agora simplesmente nao existe.
+// no bit que era do INIC. Quem escrevia o RELIG da fonte agora simplesmente nao existe.
+// (O define BIT_F1_INIC ja foi removido; uma auditoria externa suspeitou que ele ainda
+//  ocupasse o bit 30 e conflitasse com o pack de tempos. Nao ocupa — ver o mapa de bits.)
 // --- FONTE_TIPO — enum (23 opções, cabe em 5 bits) ---
 // v3q: FONTE_NENHUMA(0) inserida no topo — "---" = instância sem fonte, mesma ideia do
 // "---" dos gatilhos. Todo o resto deslocou +1; o offset dos botões virou -7 (era -6).
@@ -828,7 +830,9 @@ int Wz_Cmb_T1=3; int Wz_Cmb_T2=3; int Wz_Cmb_T3=3; int Wz_Cmb_T4=3;
 int Wz_Mod_Tipo = 0;   // 0=EXCL 1=ASSOC 2=BLOQ
 int Wz_Mod_Sel  = 0;   // máscara sendo editada (bit N-1 = instância N)
 // --- Wizard GATILHO+BTN_FN v3 (Seção 4) — lista de 5 tipos, botão único cada ---
-int Wz_Gatilho_Lista_Cur    = 0;   // v5c: cursor da lista (0-3: 2CLK, TOGGLE, HOLD, AFTER)
+// v7: cursor da lista de gatilhos — 0=2CLK 1=TOGGLE 2=HOLD 3=AFTER 4=BLOK.
+// O BLOK voltou na v6c e entra no fim; os quatro primeiros tem ALT/FIN, ele nao.
+int Wz_Gatilho_Lista_Cur    = 0;
 int Wz_Delay = 0;   // v5
 int Wz_Blok  = 0;   // v6c: botao do BLOK (RAM)
 int Wz_Fin   = 0;   // v7: 4 bits — modo de cada GAMA (RAM)
@@ -5880,7 +5884,7 @@ function telaJogo(A){
   var j=D.jogos[jg];
   $('titulo').innerHTML=h(j.nome||'sem nome');
   $('volta').onclick=function(){tela='cat';render()};
-  var s1=document.createElement('sec');s1.innerHTML='<h2>Identificação</h2>';
+  var s1=document.createElement('section');s1.innerHTML='<h2>Identificação</h2>';
   var inp=document.createElement('input');inp.type='text';inp.value=j.nome;
   inp.placeholder='nome do jogo';inp.oninput=function(){j.nome=inp.value;grava(D);
     $('titulo').innerHTML=h(j.nome||'sem nome')};
@@ -5907,7 +5911,7 @@ function telaJogo(A){
       'Marcados com <span class="tag vo">RAM</span> na lista. Se o script for gerado aqui, '+
       'são reaplicados a cada boot; configurando só pelo OLED, se perdem ao desligar.';
     A.appendChild(av)}
-  var s2=document.createElement('sec');
+  var s2=document.createElement('section');
   s2.innerHTML='<h2>MODs'+(modo==='mover'?' — reordenando':'')+'</h2>';
   var lista=document.createElement('div');lista.className='mods';
   j.mods.forEach(function(m,i){
@@ -5978,12 +5982,12 @@ function telaMod(A){
   al.O.forEach(function(t){var d=document.createElement('div');d.className='obs';
     d.innerHTML='<b>Atenção:</b> '+t;A.appendChild(d)});
 
-  var sn=document.createElement('sec');sn.innerHTML='<h2>Anotação</h2>';
+  var sn=document.createElement('section');sn.innerHTML='<h2>Anotação</h2>';
   var ni=document.createElement('input');ni.type='text';ni.value=m.nota||'';
   ni.placeholder='para que serve este MOD';
   ni.oninput=function(){m.nota=ni.value;grava(D)};
   sn.appendChild(fld('Nota',ni));A.appendChild(sn);
-  var s=document.createElement('sec');s.innerHTML='<h2>Domínios</h2>';
+  var s=document.createElement('section');s.innerHTML='<h2>Domínios</h2>';
   var bx=document.createElement('div');bx.style.display='flex';bx.style.gap='6px';
   [1,2,3,4].forEach(function(k){var b=document.createElement('button');b.className='btn sm';
     b.textContent='D'+k;if(m['d'+k])b.style.borderColor='var(--azul)';
@@ -5993,7 +5997,7 @@ function telaMod(A){
     b.onclick=function(){m['d'+k]=m['d'+k]?0:1;up()};bx.appendChild(b)});
   s.appendChild(fld('Ativo em',bx));A.appendChild(s);
 
-  var sa=document.createElement('sec');sa.innerHTML='<h2>ALFA</h2>';
+  var sa=document.createElement('section');sa.innerHTML='<h2>ALFA</h2>';
   sa.appendChild(fld('Entrada',sel(m.fonte,FONTES,function(v){m.fonte=v;up()})));
   sa.appendChild(fld('Modo',chk(m.passivo,function(v){m.passivo=v?1:0;up()})));
   sa.querySelector('.fld:last-child label').textContent='Passivo';
@@ -6002,14 +6006,14 @@ function telaMod(A){
 
   var cat=catFonte(m.fonte);
   if(cat!=='nenhuma'&&cat!=='botao'){
-    var sb=document.createElement('sec');sb.innerHTML='<h2>BETA</h2>';
+    var sb=document.createElement('section');sb.innerHTML='<h2>BETA</h2>';
     sb.appendChild(fld('MULT',sel(m.mult,MULT,function(v){m.mult=v;up()})));
     sb.appendChild(fld('THR_IN',sel(m.tin,THR,function(v){m.tin=v;up()})));
     sb.appendChild(fld('THR_OUT',sel(m.tout,['OFF'].concat(THR.slice(1)),function(v){m.tout=v;up()})));
     if(cat==='eixo')sb.appendChild(fld('DIR',sel(m.dir,['NEG','ABS','POS'],function(v){m.dir=v;up()})));
     A.appendChild(sb)}
 
-  var sg=document.createElement('sec');sg.innerHTML='<h2>GAMA</h2>';
+  var sg=document.createElement('section');sg.innerHTML='<h2>GAMA</h2>';
   sg.appendChild(fld('2CLK',sel(m.g2clk,BOTOES,function(v){m.g2clk=v;up()})));
   if(m.g2clk)sg.appendChild(fld('· modo',sel(m.fin2clk,['ALTERNA','FINALIZA'],function(v){m.fin2clk=v;up()})));
   sg.appendChild(fld('TOGGLE',sel(m.gTog,BOTOES,function(v){m.gTog=v;up()})));
@@ -6025,7 +6029,7 @@ function telaMod(A){
   sg.appendChild(fld('BLOK',sel(m.gBlok,BOTOES,function(v){m.gBlok=v;up()})));
   A.appendChild(sg);
 
-  var sd=document.createElement('sec');sd.innerHTML='<h2>DELTA</h2>';
+  var sd=document.createElement('section');sd.innerHTML='<h2>DELTA</h2>';
   sd.appendChild(fld('Tipo',sel(m.tipo,['DIRECT','STATIC','TURBO'],function(v){m.tipo=v;up()})));
   if(m.tipo===2){
     sd.appendChild(fld('Latência',sel(m.lat,TLAT,function(v){m.lat=v;up()})));
@@ -6038,7 +6042,7 @@ function telaMod(A){
       sd.appendChild(fld('· tempo',sel(m.tmp[k],TPASSO,function(v){m.tmp[k]=v;up()})))});
   A.appendChild(sd);
 
-  var sh=document.createElement('sec');sh.innerHTML='<h2>ZETA</h2>';
+  var sh=document.createElement('section');sh.innerHTML='<h2>ZETA</h2>';
   // v6c: mesma ordem do OLED — EXCL, ASSOC, BLOQ. O app e usado para CONFERIR o que
   // esta no Cronus, entao a ordem tem de bater com a da tela. So a exibicao muda; os
   // dados e o gerador continuam identicos.
@@ -6113,7 +6117,7 @@ function telaInfo(A){
   $('titulo').innerHTML='Informações';
   $('volta').onclick=function(){tela='cat';render()};
   function bloco(tit, itens){
-    var s=document.createElement('sec');
+    var s=document.createElement('section');
     s.innerHTML='<h2>'+tit+'</h2>';
     itens.forEach(function(p){
       var d=document.createElement('div');
