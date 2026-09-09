@@ -2154,11 +2154,19 @@ function Run_Instance_v3(num) {
 // A instância está ativa agora? (SEMPRE_ATIVO sem gatilho = sempre; senão consulta Inst_Ativa)
 // v3zy: o MOD tem algum gatilho que possa LIGA-LO? O BLOK fica de fora de proposito —
 // ele so suspende enquanto segurado, nunca liga.
+// v7a CORRIGIDO: um gatilho marcado como FINALIZA nao LIGA nada, entao nao pode contar
+// como "gatilho de estado". Contava, e isso abria um buraco que so apareceu quando o
+// Daniel montou o MOD_03 do futebol: sem ALFA, com o unico GAMA em FINALIZA e um ZETA
+// ASSOC configurado, o MOD ficava INERTE — o gatilho nao ligava (por ser FINALIZA) e o
+// ASSOC nao o adotava (porque o gatilho, mesmo inutil para ligar, contava aqui).
+// Descontando os FINALIZA, o MOD volta a ser adotado pelo ASSOC e sobe com o alvo,
+// que era exatamente a intencao da configuracao.
+// Os indices batem com Gatilho_Alterna_G: 0=2CLK 1=TOGGLE 2=HOLD 3=AFTER.
 function Tem_Gatilho_Estado(num) {
-    if(Get_Gatilho_Hphold_Btn(num))     return 1;
-    if(Get_Gatilho_Duplo_Btn(num))      return 1;
-    if(Get_Gatilho_Final_Btn(num))      return 1;
-    if(Get_Gatilho_FinalAfter_Btn(num)) return 1;
+    if(Get_Gatilho_Duplo_Btn(num)      && !((Get_Fin(num) >> 0) & 1)) return 1;
+    if(Get_Gatilho_Final_Btn(num)      && !((Get_Fin(num) >> 1) & 1)) return 1;
+    if(Get_Gatilho_Hphold_Btn(num)     && !((Get_Fin(num) >> 2) & 1)) return 1;
+    if(Get_Gatilho_FinalAfter_Btn(num) && !((Get_Fin(num) >> 3) & 1)) return 1;
     return 0;
 }
 function Inst_Esta_Ativa(num) {
@@ -2175,7 +2183,12 @@ function Inst_Esta_Ativa(num) {
         // querendo um TURBO num botao e um STATIC noutro pelo mesmo acionamento, o segundo
         // MOD pega carona no primeiro, sem gastar botao nem gatilho.
         // Custo zero: e regra derivada, e a combinacao que ela usa nao fazia nada antes.
-        if(Get_F1_Assoc(num) && !Tem_Gatilho_Estado(num)) return 1;
+        // v7b: o orfao adotado agora RESPEITA o desligamento. Antes devolvia 1
+        // incondicionalmente, e um GAMA em FINALIZA nao conseguia derruba-lo — o
+        // Daniel viu isso no MOD_03 do futebol, onde o toque no TOUCH nao cortava a
+        // corrida. Quem liga o orfao passou a ser a BORDA do ASSOC (ver Adotar_Orfaos):
+        // quando um alvo sobe, a instancia liga; depois disso, ela obedece ao proprio
+        // estado, como qualquer outra.
         return (Inst_Ativa >> (num - 1)) & 1;
     }
     // v3: checa os getters novos (Seção 4, botão único). Os antigos (Get_F1_GBTN etc.)
@@ -2732,6 +2745,34 @@ function Computar_Mods_Excl_v3() {
     Computar_Excl_Instancia_v3(21);
     Excl_RespAnt = Bloq_Snap_Resp;
 }
+// v7b: liga os MODs ORFAOS na BORDA do ASSOC. Orfao = sem ALFA e sem GAMA que ligue,
+// mas com ZETA ASSOC — a combinacao que antes era inerte e que a v3zy passou a adotar.
+// Aqui a adocao virou um EVENTO, nao um estado permanente: quando um alvo do ASSOC
+// passa de parado a de pe, o orfao liga. A partir dai ele obedece ao proprio estado,
+// entao um GAMA em FINALIZA consegue derruba-lo — e ele so volta quando o alvo subir
+// de novo. E o comportamento que o MOD_03 do futebol pede: a corrida sobe com o
+// movimento, o toque no TOUCH corta, e voltar a mover traz de volta.
+function Adotar_Orfao(m) {
+    if(Get_Fonte_Tipo(m) != FONTE_NENHUMA) return;
+    if(Tem_Gatilho_Estado(m)) return;
+    Work_A = Get_F1_Assoc(m);
+    if(!Work_A) return;
+    Work_A = Work_A & Mod_Apto;
+    if(!Work_A) return;
+    // subiu agora = esta de pe neste quadro e NAO estava no anterior
+    if(Mask_Tem_Bit_Comum(Work_A, Bloq_Snap_Resp & (~Excl_RespAnt))) {
+        Inst_Ativa = Inst_Ativa | (1 << (m - 1));
+        Aplicar_RespOff_Inst(m);
+    }
+}
+function Adotar_Orfaos() {
+    Adotar_Orfao(1);  Adotar_Orfao(2);  Adotar_Orfao(3);  Adotar_Orfao(4);
+    Adotar_Orfao(5);  Adotar_Orfao(6);  Adotar_Orfao(7);  Adotar_Orfao(8);
+    Adotar_Orfao(9);  Adotar_Orfao(10); Adotar_Orfao(11); Adotar_Orfao(12);
+    Adotar_Orfao(13); Adotar_Orfao(14); Adotar_Orfao(15); Adotar_Orfao(16);
+    Adotar_Orfao(17); Adotar_Orfao(18); Adotar_Orfao(19); Adotar_Orfao(20);
+    Adotar_Orfao(21);
+}
 function Computar_Mods_Assoc_v3() {
     Assoc_Mask = 0;
     Computar_Assoc_Instancia_v3(1); Computar_Assoc_Instancia_v3(2); Computar_Assoc_Instancia_v3(3); Computar_Assoc_Instancia_v3(4);
@@ -2751,6 +2792,7 @@ function Run_Pipeline() {
     // instancia suspensa pelo ASSOC ainda bloqueia terceiros (teste 17). EXCL fica por
     // ultimo porque e ele quem renova Excl_RespAnt para o proximo quadro.
     Computar_Snapshot_v3();
+    Adotar_Orfaos();          // v7b: a borda do ASSOC liga os orfaos
     Computar_Mods_Assoc_v3();
     Computar_Mods_Bloq_v3();
     Computar_Mods_Excl_v3();
@@ -5536,7 +5578,14 @@ function catFonte(f){var n=FONTES[f];
   if(EIXOS.indexOf(n)>=0)return'eixo';
   if(GATS.indexOf(n)>=0)return'gatilho';
   return'botao'}
-function temGatilhoEstado(m){return m.g2clk||m.gTog||m.gHold||m.gAfter}
+// v7a: espelha a regra do script — um gatilho em FINALIZA nao liga, entao nao conta
+// como "gatilho de estado". E o que permite o MOD ser adotado pelo ZETA ASSOC.
+function temGatilhoEstado(m){
+  if(m.g2clk&&!m.fin2clk)return 1;
+  if(m.gTog&&!m.finTog)return 1;
+  if(m.gHold&&!m.finHold)return 1;
+  if(m.gAfter&&!m.finAfter)return 1;
+  return 0}
 // O que NAO sobrevive ao reinicio: as relacoes ZETA e o tempo do GAMA AFTER.
 // Vivem em RAM por decisao de projeto — nao ha bits na EEPROM para eles.
 function temVolatil(m){
@@ -5660,8 +5709,11 @@ function alertas(j,i){
   var perf=m.d1||m.d2||m.d3||m.d4;
   if(!perf)A.push('Nenhum DOMÍNIO marcado — este MOD nunca roda.');
   if(!temDestino(m))A.push('DELTA sem saída: o MOD não produz nada.');
-  if(cat==='nenhuma'&&!temGatilhoEstado(m)&&!m.assoc.length&&temDestino(m))
-    A.push('Sem ALFA, sem GAMA que ligue e sem ZETA ASSOC — inerte para sempre.');
+  if(cat==='nenhuma'&&!temGatilhoEstado(m)&&!m.assoc.length&&temDestino(m)){
+    var soFin=(m.g2clk&&m.fin2clk)||(m.gTog&&m.finTog)||(m.gHold&&m.finHold)||(m.gAfter&&m.finAfter);
+    A.push(soFin
+      ? 'Todos os GAMA estão em FINALIZA e não há ZETA ASSOC — nada liga este MOD.'
+      : 'Sem ALFA, sem GAMA que ligue e sem ZETA ASSOC — inerte para sempre.');}
 
   if(m.tout>0&&m.tin===m.tout)
     A.push('THR_IN igual ao THR_OUT: janela de largura zero, praticamente nunca responde.');
