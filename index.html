@@ -5592,38 +5592,48 @@ function temGatilhoEstado(m){
   return 0}
 // O que NAO sobrevive ao reinicio: as relacoes ZETA e o tempo do GAMA AFTER.
 // Vivem em RAM por decisao de projeto — nao ha bits na EEPROM para eles.
+// v7e CORRIGIDO: a listaVolatil ja citava BLOK e FINALIZA, mas o temVolatil nao — entao
+// um MOD que so tinha BLOK nao ganhava a etiqueta RAM e ficava de fora da contagem.
+// Apareceu na auditoria do Mad Max: o MOD_17, com BLOK no R1, nao era marcado.
+// Os dois tem de listar exatamente as mesmas coisas.
 function temVolatil(m){
-  // v5: o tempo do AFTER passou a ser persistente. So o ZETA continua em RAM.
   if(m.excl.length||m.assoc.length||m.bloq.length)return 1;
+  if(m.gBlok)return 1;
+  if(finReal(m))return 1;
   return 0}
+// v7e: so conta o FINALIZA de gatilhos que REALMENTE existem. O flag sobrevivia quando
+// o usuario marcava FINALIZA e depois tirava o botao, e o app gerava Fin_NN para um
+// gatilho inexistente — foi o caso dos MOD_01 e MOD_02 do Mad Max, que nao tem TOGGLE
+// nenhum e mesmo assim saiam com Fin=2 no script.
+function finReal(m){
+  var v=0;
+  if(m.g2clk && m.fin2clk) v|=1;
+  if(m.gTog && m.finTog)   v|=2;
+  if(m.gHold && m.finHold) v|=4;
+  if(m.gAfter && m.finAfter) v|=8;
+  return v}
 function listaVolatil(m){var v=[];
   if(m.excl.length)v.push('ZETA EXCL');
   if(m.assoc.length)v.push('ZETA ASSOC');
   if(m.bloq.length)v.push('ZETA BLOQ');
   if(m.gBlok)v.push('GAMA BLOK');
-  if(m.fin2clk||m.finTog||m.finHold||m.finAfter)v.push('modo FINALIZA dos GAMA');
+  if(finReal(m))v.push('modo FINALIZA dos GAMA');
   return v}
 function temDestino(m){return m.dst.some(function(d){return d>0})}
-// Troca dois MODs de posicao. Alem de trocar o conteudo, REINDEXA as relacoes ZETA de
-// todos os MODs: quem apontava para A passa a apontar para B e vice-versa. E a mesma
-// operacao que o Swap_Pos faz no script, para que app e Cronus fiquem alinhados.
+
+// Troca dois MODs de posicao e REINDEXA as relacoes ZETA de todos: quem apontava para A
+// passa a apontar para B e vice-versa. E a mesma operacao que o L2+UP/DOWN faz no
+// SigRouter — sem a reindexacao, um MOD que apontava para o vizinho passaria a apontar
+// para o lugar errado.
 function trocaMod(j,a,b){
   var t=j.mods[a];j.mods[a]=j.mods[b];j.mods[b]=t;
   j.mods.forEach(function(m){
     ['excl','assoc','bloq'].forEach(function(k){
       m[k]=m[k].map(function(x){return x===a?b:(x===b?a:x)})})})}
+// Devolve o rotulo do MOD, ou null se ele nunca foi configurado.
 function nomeMod(j,i){var m=j.mods[i];
   if(!m.fonte&&!temGatilhoEstado(m)&&!temDestino(m))return null;
   return'MOD_'+String(i+1).padStart(2,'0')}
-// Troca dois MODs de posicao e reindexa TODAS as referencias ZETA — a mesma operacao
-// que o L2+UP/DOWN faz no SigRouter. Sem a reindexacao, um MOD que apontava para o
-// vizinho passaria a apontar para o lugar errado.
-function trocaMod(j,a,b){
-  var t=j.mods[a];j.mods[a]=j.mods[b];j.mods[b]=t;
-  j.mods.forEach(function(m){
-    ['excl','assoc','bloq'].forEach(function(k){
-      m[k]=m[k].map(function(x){return x===a?b:(x===b?a:x)})})});
-}
 function listaAlvos(arr){return arr.map(function(i){return'MOD_'+String(i+1).padStart(2,'0')}).join(', ')}
 
 // ---------- o resumo em português ----------
@@ -5642,12 +5652,17 @@ function resumo(j,i){
       listaAlvos(m.assoc).replace(/MOD_\d+/g,function(x){return'<em>'+x+'</em>'})+
       ' pelo ZETA ASSOC, enquanto o alvo responder.');
   } else if(cat==='nenhuma'){
+    // v7e: so entram aqui os gatilhos que REALMENTE alternam. Os marcados como FINALIZA
+    // nao ligam, e listar todos juntos dizia o contrario do que a linha seguinte do
+    // proprio resumo afirma — apareceu no MOD_07 do Mad Max, onde o L1 e o TRIANGLE
+    // estao em FINALIZA e mesmo assim eram descritos como se alternassem.
     var g=[];
-    if(m.g2clk)g.push('dois cliques em <em>'+BOTOES[m.g2clk]+'</em>');
-    if(m.gTog)g.push('um toque em <em>'+BOTOES[m.gTog]+'</em>');
-    if(m.gHold)g.push('segurar <em>'+BOTOES[m.gHold]+'</em> '+(m.gHoldM?'e soltar antes de ':'por ')+THOLD[m.gHoldT]);
-    if(m.gAfter)g.push('soltar <em>'+BOTOES[m.gAfter]+'</em> e esperar '+THOLD[m.gAfterT]);
+    if(m.g2clk&&!m.fin2clk)g.push('dois cliques em <em>'+BOTOES[m.g2clk]+'</em>');
+    if(m.gTog&&!m.finTog)g.push('um toque em <em>'+BOTOES[m.gTog]+'</em>');
+    if(m.gHold&&!m.finHold)g.push('segurar <em>'+BOTOES[m.gHold]+'</em> '+(m.gHoldM?'e soltar antes de ':'por ')+THOLD[m.gHoldT]);
+    if(m.gAfter&&!m.finAfter)g.push('soltar <em>'+BOTOES[m.gAfter]+'</em> e esperar '+TAFTER[m.gAfterT]);
     if(g.length)p.push('Sem ALFA, o GAMA comanda: '+g.join(' ou ')+' <em>alterna</em> o MOD.');
+    else if(m.assoc.length)p.push('Sem ALFA e sem GAMA que ligue: sobe pelo <em>ZETA ASSOC</em>, junto com o alvo.');
     else p.push('Sem ALFA e sem GAMA que ligue — este MOD nunca responde.');
   } else {
     var f='<em>'+FONTES[m.fonte]+'</em>';
@@ -5710,6 +5725,11 @@ function resumo(j,i){
 // ---------- alertas ----------
 function alertas(j,i){
   var m=j.mods[i],A=[],O=[],cat=catFonte(m.fonte);
+  // v7e: um MOD que nunca foi configurado nao tem o que alertar. Sem esta guarda, os
+  // MODs vazios apareciam na lista com dois alertas vermelhos ("sem DOMINIO" e "sem
+  // saida") — tecnicamente verdade, mas ruido puro: chamavam atencao para o que nao
+  // existe e escondiam os alertas dos MODs que importam.
+  if(!nomeMod(j,i)) return {A:A,O:O};
   var perf=m.d1||m.d2||m.d3||m.d4;
   if(!perf)A.push('Nenhum DOMÍNIO marcado — este MOD nunca roda.');
   if(!temDestino(m))A.push('DELTA sem saída: o MOD não produz nada.');
@@ -5874,7 +5894,7 @@ function configGpc(j){
     var ex=maskZeta(mz.excl), as=maskZeta(mz.assoc), bl=maskZeta(mz.bloq);
     if(ex||as||bl)L.push('    SR_F1_EXCL_'+n+'='+ex+'; SR_F1_ASSOC_'+n+'='+as+'; SR_F1_BLOQ_'+n+'='+bl+';');
     if(mz.gBlok)L.push('    Blk_'+n+'='+mz.gBlok+';');
-    var fin=(mz.fin2clk?1:0)|(mz.finTog?2:0)|(mz.finHold?4:0)|(mz.finAfter?8:0);
+    var fin=finReal(mz);   // v7e: nunca gera flag para gatilho que nao existe
     if(fin)L.push('    Fin_'+n+'='+fin+';');
   }
   L.push('}');
