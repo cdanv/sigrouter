@@ -5637,11 +5637,21 @@ function resumo(j,i){
   if(cat==='nenhuma'&&m.tipo===0&&temGatilhoEstado(m))
     p.push('DIRECT sem ALFA <em>encerra ao soltar</em> o botão, então cada toque aciona de novo.');
   if(m.delay)p.push('DELAY: a resposta só sobe <em>'+TDELAY[m.delay]+'</em> depois de ser acionada.');
-  if(m.gBlok)p.push('GAMA BLOK: segurar <em>'+BOTOES[m.gBlok]+'</em> suspende enquanto pressionado.');
+  if(m.gBlok)p.push('GAMA BLOK: segurar <em>'+BOTOES[m.gBlok]+'</em> suspende enquanto pressionado. <em>(RAM)</em>');
   if(m.passivo&&cat!=='nenhuma')p.push('PASSIVO: a entrada e os botões do GAMA <em>não chegam ao jogo</em>.');
-  if(m.excl.length)p.push('ZETA EXCL: é <em>encerrado</em> quando '+listaAlvos(m.excl)+' sobe.');
-  if(m.assoc.length&&!orfao)p.push('ZETA ASSOC: só responde <em>enquanto</em> '+listaAlvos(m.assoc)+' responder.');
-  if(m.bloq.length)p.push('ZETA BLOQ: fica <em>suspenso</em> enquanto '+listaAlvos(m.bloq)+' responder.');
+  // v7a: o modo FINALIZA precisa aparecer aqui pelo mesmo motivo do ZETA — e para
+  // CONFERIR a ultima configuracao do MOD que o resumo serve.
+  var fins=[];
+  if(m.fin2clk&&m.g2clk)fins.push('2CLK');
+  if(m.finTog&&m.gTog)fins.push('TOGGLE');
+  if(m.finHold&&m.gHold)fins.push('HOLD');
+  if(m.finAfter&&m.gAfter)fins.push('AFTER');
+  if(fins.length)p.push('Modo <em>FINALIZA</em> em '+fins.join(', ')+
+    ' — esse'+(fins.length>1?'s':'')+' gatilho'+(fins.length>1?'s':'')+' só desliga'+
+    (fins.length>1?'m':'')+', nunca liga'+(fins.length>1?'m':'')+'. <em>(RAM)</em>');
+  if(m.excl.length)p.push('ZETA EXCL <em>(RAM)</em>: é <em>encerrado</em> quando '+listaAlvos(m.excl)+' sobe.');
+  if(m.assoc.length&&!orfao)p.push('ZETA ASSOC <em>(RAM)</em>: só responde <em>enquanto</em> '+listaAlvos(m.assoc)+' responder.');
+  if(m.bloq.length)p.push('ZETA BLOQ <em>(RAM)</em>: fica <em>suspenso</em> enquanto '+listaAlvos(m.bloq)+' responder.');
   return p}
 
 // ---------- alertas ----------
@@ -6127,7 +6137,7 @@ function telaInfo(A){
     A.appendChild(s)}
 
   var av=document.createElement('div');av.className='obs';
-  av.innerHTML='<b>Três coisas vivem em RAM:</b> as relações <b>ZETA</b>, o botão do '+
+  av.innerHTML='<b>Três variáveis vivem em RAM:</b> as relações <b>ZETA</b>, o botão do '+
     '<b>GAMA BLOK</b> e o <b>modo FINALIZA</b> dos gatilhos. Não há bits na EEPROM para elas. '+
     'Se o script for gerado aqui, são reaplicadas a cada boot — a configuração deste app '+
     'funciona como o padrão delas. Configurando só pelo OLED, se perdem ao desligar. '+
@@ -6135,10 +6145,10 @@ function telaInfo(A){
   A.appendChild(av);
 
   bloco('Abrir e fechar', [
-    ['R1 + OPTIONS','Abre e fecha o menu de configuração (MenuDin).'],
+    ['R1 + OPTIONS','Abre e fecha o menu de dev / configurações dos MODs SR.'],
     ['OPTIONS sozinho','Abre o menu comum. Ele CONGELA os MODs e retoma ao fechar — não reseta nada.'],
     ['CIRCLE segurado','Na lista de MODs, fecha o menu. Dentro de um MOD, volta um nível.'],
-    ['L1 + L3 · R1 + R3','Troca de domínio. Duplo-clique para D1 e D2; segurar para D3 e D4.']]);
+    ['L3 e R3','Troca de domínio. <b>Duplo-clique</b> no L3 vai para D1 e no R3 para D2; <b>segurar</b> o L3 vai para D3 e o R3 para D4.']]);
 
   bloco('Dentro do MOD', [
     ['X','Confirma em RAM. Aparece o indicador R.'],
@@ -6156,8 +6166,9 @@ function telaInfo(A){
     ['E','Salvo por você, sem alteração pendente.']]);
 
   bloco('Funções escondidas', [
-    ['R2 + duplo DOWN no menu comum','Liga e desliga o touch por completo (FINGER e os eixos X/Y). '+
-     'Ele nasce ligado; o ATIVO/PASSIVO do ALFA já cobre anular caso a caso.'],
+    ['R2 + duplo DOWN','Liga e desliga o touch por completo (FINGER e os eixos X/Y). '+
+     '<b>Só funciona com o menu comum aberto</b> — fora dele o comando não tem efeito. '+
+     'O touch nasce ligado; o ATIVO/PASSIVO do ALFA já cobre anular caso a caso.'],
     ['SHARE durante o jogo','É convertido em toque no touchpad, para não abrir a tela de captura.']]);
 
   bloco('O que não aparece em tela', [
