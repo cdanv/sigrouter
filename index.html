@@ -139,6 +139,11 @@ textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line)
 *                nunca a fonte nem o gatilho.
 * -----------------------------------------------------------------------------------
 * CONTROLES
+*   TROCA DE DOMINIO — o L1 tem de estar PRESSIONADO durante a acao no L3, e o R1
+*   durante a acao no R3. Sem isso nada acontece, e e o comando que mais se esquece:
+*     L1 + duplo-clique no L3 -> D1        R1 + duplo-clique no R3 -> D2
+*     L1 + segurar o L3       -> D3        R1 + segurar o R3       -> D4
+*
 *   R1 + OPTIONS    abre / fecha o MenuDin
 *   X               confirma (grava em RAM)         CIRCLE  volta um nivel
 *   UP / DOWN       navega                          LEFT / RIGHT  ajusta valor
@@ -6200,7 +6205,9 @@ function telaInfo(A){
     ['R1 + OPTIONS','Abre e fecha o menu de dev / configurações dos MODs SR.'],
     ['OPTIONS sozinho','Abre o menu comum. Ele CONGELA os MODs e retoma ao fechar — não reseta nada.'],
     ['CIRCLE segurado','Na lista de MODs, fecha o menu. Dentro de um MOD, volta um nível.'],
-    ['L3 e R3','Troca de domínio. <b>Duplo-clique</b> no L3 vai para D1 e no R3 para D2; <b>segurar</b> o L3 vai para D3 e o R3 para D4.']]);
+    ['L1 + L3  ·  R1 + R3','Troca de domínio. O <b>L1 precisa estar pressionado</b> durante a ação no L3, e o <b>R1</b> durante a ação no R3 — sem isso nada acontece.<br>'+
+     '<b>L1 + duplo-clique no L3</b> → D1<br><b>R1 + duplo-clique no R3</b> → D2<br>'+
+     '<b>L1 + segurar o L3</b> → D3<br><b>R1 + segurar o R3</b> → D4']]);
 
   bloco('Dentro do MOD', [
     ['X','Confirma em RAM. Aparece o indicador R.'],
