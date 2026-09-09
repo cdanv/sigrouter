@@ -809,7 +809,7 @@ int Wz_S3 = FALSE; int Wz_S4 = FALSE;
 // === FONTE_1 COMPARTILHADOS (gatilho, BTN_FN, MODs, TAIL, TURBO) ===
 // MOD_ASSOC máscara de modo
 // MOD_BLOQ máscara de modo
-// Estado da máquina TURBO por eixo (RAM): bits0-8=timer(ms) bit9=fase bits10-13=ciclos_rest bit14=rodando
+// v7d: estado da maquina do TURBO por MOD (o "por eixo" era da v2). RAM: bits0-8=timer(ms) bit9=fase bits10-13=ciclos_rest bit14=rodando
 int SR_TrbSt_X_01=0; int SR_TrbSt_X_02=0; int SR_TrbSt_X_03=0; int SR_TrbSt_X_04=0; int SR_TrbSt_X_05=0; int SR_TrbSt_X_06=0; int SR_TrbSt_X_07=0; int SR_TrbSt_X_08=0; int SR_TrbSt_X_09=0; int SR_TrbSt_X_10=0; int SR_TrbSt_X_11=0; int SR_TrbSt_X_12=0; int SR_TrbSt_X_13=0; int SR_TrbSt_X_14=0; int SR_TrbSt_X_15=0; int SR_TrbSt_X_16=0;
 int SR_TrbSt_X_17=0; int SR_TrbSt_X_18=0; int SR_TrbSt_X_19=0; int SR_TrbSt_X_20=0; int SR_TrbSt_X_21=0;
 
@@ -824,8 +824,11 @@ int Wz_Cond_ThrOut   = 0;
 int Wz_Cond_Dir      = 1;    // default ABS
 // --- Wizard TIPO+DESTINO v3 (Seção 5) ---
 int Wz_Tipo        = 0;    // 0=DIRECT 1=ESTATC 2=TURBO
-int Wz_Turbo_Lat   = 3;    // v5: idx 3 = 40ms. O comentario dizia 100ms desde a v3zr,
-                           // quando a tabela virou 16 valores e o indice mudou de significado.
+// v7d: idx 3 = 30ms. Este comentario ja errou DUAS vezes, sempre pelo mesmo motivo — a
+// tabela mudou e ele nao acompanhou. Na v3zr ela foi de 8 para 16 valores; na v6 o "---"
+// entrou no indice 0 e empurrou todos os demais. Ao mexer em Trb_Lat_Ms ou nas strings
+// LATT_*, confira ESTA linha.
+int Wz_Turbo_Lat   = 3;    // 30ms
 int Wz_Turbo_Modo  = 0;    // default ABS
 int Wz_Turbo_Ciclos= 0;    // default ATIVO (enquanto ativo)
 // v3ze: edicao dos 4 passos. Destino 0=nenhum, 1-18 = indice do destino + 1.
@@ -848,19 +851,13 @@ int Wz_Gatilho_Duplo_Btn    = 0;
 int Wz_Gatilho_Final_Btn    = 0;
 int Wz_Gatilho_FA_Btn       = 0;
 int Wz_Gatilho_FA_Tempo     = 5;   // v5: idx5 = 500ms na tabela de 8
-    // eixo X selecionado (0=F1X 1=LX 2=RX)
-
-    // ON/OFF
    // eixo em configuração no fluxo (0=X 1=Y)
-    // PASSIVO (0=ATIVO 1=PASSIVO)
-   // multiplicador (0-19)
     // thresh in — só LX/RX
     // thresh out — só LX/RX
     // direção — só LX/RX
     // inversão — só LX/RX
 // --- Wizard FONTE_1 EIXO_Y (0=F1Y 1=LY 2=RY) ---
     // eixo Y selecionado (0=F1Y 1=LY 2=RY)
-    // ON/OFF
     // PASSIVO
    // multiplicador
     // thresh in — só LY/RY
@@ -3506,7 +3503,9 @@ main {
 // =============================================================
 
 
-// Helpers do pacote TURBO por eixo (bits0-3=PERM 4-7=LAT 8-9=MODO 10-13=CICLOS)
+// v7d: helpers do pacote TURBO por MOD. O layout descrito aqui (PERM/LAT/MODO/CICLOS
+// em 14 bits) e da v3zc — hoje LAT e CICLOS moram no SPVAR_C e os tempos no pack de 12
+// bits repartido. Ver o mapa de bits.
 
 // CICLOS do TURBO: 0=ATIVO (enquanto ativo), 1-10 = número de oscilações
 
