@@ -157,7 +157,10 @@ textarea{width:100%;height:190px;background:#0a0e14;border:1px solid var(--line)
 * -----------------------------------------------------------------------------------
 * MEMORIA
 *   96 bits persistentes por MOD = 3 SPVARs. 21 MODs x 3 = 63 das 64 SPVARs.
-*   A SPVAR_64 esta livre. Os tres SPVARs estao em 32/32 — nao ha bit sobrando.
+*   Os tres SPVARs de cada MOD estao em 32/32 — nao ha bit sobrando.
+*   A SPVAR_64 NAO esta livre desde a v5b: ela e repartida entre o bit 0, que marca a
+*   migracao de layout ja feita, e os bits 1-31, que guardam o selo da configuracao
+*   gerada pelo app. Os dois tem espacos separados justamente para nao se apagarem.
 *   Vivem em RAM (nao sobrevivem ao reinicio): as 3 mascaras de relacao entre MODs,
 *   o tempo do AFTER, e todo o estado de execucao.
 *********************************************************************************** */
@@ -538,7 +541,7 @@ define SHIFT_DELAY      = 22;   // 2 bits — SPVAR_B (bits 22-23)
 define SHIFT_AFTER_TMP  = 24;   // 3 bits — SPVAR_B (bits 24-26), tempo do AFTER
 // Leia como AFTER_TEMPO. Renomear exigiria tocar em todos os usos; fica para a proxima
 // revisao que mexer no layout.
-// SPVAR_B: TURBO_MODO em 27-28 | bits 29-31 LIVRES (viram parte do pack de tempos do COMBO)
+// SPVAR_B: TURBO_MODO em 27-28 | bits 29-31 = parte media do pack de tempos do COMBO (3 dos 12)
 define SHIFT_GATILHO_HPHOLD_BTN   = 0;   // 5 bits — SPVAR_C (bits 0-4)
 // v3zb: TRIO de botoes empacotado — DUPLO, FINAL e FINALAFTER em 13 bits (SPVAR_C 5-17)
 // contra os 15 que ocupavam separados. 17 x 17 x 17 = 4913 combinacoes.
@@ -549,9 +552,15 @@ define SHIFT_GATILHO_HPHOLD_BTN   = 0;   // 5 bits — SPVAR_C (bits 0-4)
 // do Zen em 1ms, estourar nao degrada — trava. O trio custa no maximo 2 divisoes por
 // leitura e ainda deixa BLOQ e HPHOLD com acesso direto.
 define SHIFT_GATILHO_TRIO_BTN    = 5;   // 13 bits — SPVAR_C (bits 5-17)
-// bits 18-19 do SPVAR_C: LIVRES
-// TURBO_PERM/LAT/CICLOS ficam em SPVAR_C bits 20-31 (definidos como literais nos próprios
-// Get/Set_Turbo_*, não mudam de posição — só as 4 seleções de botão acima abriram espaço).
+// v7e: o mapa do SPVAR_C acima dos bits 18 e o seguinte, lido dos proprios getters:
+//   bits 18-21  LAT do TURBO (4 bits, 16 valores)
+//   bits 22-24  CICLOS (3 bits, ATIVO + 1 a 7)
+//   bits 25-31  parte baixa do pack de tempos do COMBO (7 dos 12 bits)
+// NAO ha bit livre neste SPVAR. O comentario anterior dizia "18-19 LIVRES" e citava um
+// TURBO_PERM que deixou de existir na v3ze, quando cada passo do combo ganhou tempo
+// proprio. TRES auditorias externas leram aquele texto como se fosse o mapa vigente e
+// reportaram bits livres que nao existem — e um mapa errado e pior que nenhum, porque
+// quem o seguisse alocaria em cima do LAT.
 // =============================================================
 // --- FONTE_1 — direção ---
 define F1_DIR_NEGATIVO   = 0;
@@ -1358,7 +1367,8 @@ function Set_GT_Relig(num, v) {
     if(num==20) GT_Relig_20=v;
     if(num==21) GT_Relig_21=v;
 }
-// v3: RELIG do HOLD agora PERSISTENTE, no SPVAR_64 (único SPVAR global livre).
+// [HISTORICO] v3: o RELIG do HOLD foi persistente no SPVAR_64 ate a v3zb, quando virou
+// regra derivada. A SPVAR_64 hoje guarda a migracao e o selo da config do app.
 // Segue o mesmo padrão dos SPVAR_A/B/C: vive em RAM (SR_HoldRelig) durante a execução,
 // e só vai pra EEPROM em Save_Instance. Diferença importante: como o SPVAR_64 é GLOBAL
 // (não dedicado por instância), este bit é indexado POR POSIÇÃO (bit = num-1) e por isso
@@ -4644,8 +4654,9 @@ function Load_All() {
     SR_A_21 = get_pvar(SPVAR_61, -2147483648, 2147483647, 0);
     SR_B_21 = get_pvar(SPVAR_62, -2147483648, 2147483647, 0);
     SR_C_21 = get_pvar(SPVAR_63, -2147483648, 2147483647, 0);
-    // v3zb: o SPVAR_64 esta LIVRE — guardava o RELIG do HOLD, que agora e derivado.
-    // E a unica SPVAR global do sistema; fica reservada para o proximo recurso.
+    // v7e: a SPVAR_64 NAO esta livre desde a v5b. E a unica global do sistema e hoje
+    // e repartida: bit 0 marca a migracao de layout ja feita, bits 1-31 guardam o selo
+    // da configuracao gerada pelo app. Ver Marcar_Selo / Selo_Cfg_Gravado.
 }
 // Salva 3 SPVARs de uma instância — chamado apenas no SHARE 1s
 function Save_Instance(num) {
@@ -5747,6 +5758,25 @@ function alertas(j,i){
       var comum=(m.d1&&o.d1)||(m.d2&&o.d2)||(m.d3&&o.d3)||(m.d4&&o.d4);
       if(!comum)A.push('O alvo MOD_'+String(t+1).padStart(2,'0')+' ('+k.toUpperCase()+
         ') não divide nenhum DOMÍNIO com este MOD — será ignorado.')})});
+  // v7e: ASSOC CIRCULAR entre MODs que nao tem quem os ligue. Se A depende de B, B de C
+  // e C de A, e nenhum deles tem ALFA ou GAMA, ninguem sobe: a adocao pelo ASSOC precisa
+  // que um alvo suba primeiro, e nenhum sobe. Os tres ficam inertes, em silencio.
+  // (Circularidade em BLOQ e EXCL nao trava — a avaliacao e por snapshot, com numero
+  //  fixo de passadas. So o ASSOC entre orfaos produz o impasse.)
+  if(cat==='nenhuma'&&!temGatilhoEstado(m)&&m.assoc.length){
+    var vis={}, fila=m.assoc.slice(), achouRaiz=false, giro=0;
+    while(fila.length&&giro<64){
+      giro++;
+      var q=fila.shift();
+      if(vis[q])continue; vis[q]=1;
+      var o=j.mods[q];
+      if(!o)continue;
+      if(catFonte(o.fonte)!=='nenhuma'||temGatilhoEstado(o)){achouRaiz=true;break}
+      o.assoc.forEach(function(x){if(!vis[x])fila.push(x)});
+    }
+    if(!achouRaiz)A.push('A cadeia de ZETA ASSOC se fecha em círculo e nenhum MOD dela '+
+      'tem ALFA ou GAMA que ligue — nenhum chega a subir.');
+  }
   // assoc com alvo sem destino
   m.assoc.forEach(function(t){if(!temDestino(j.mods[t]))
     A.push('O alvo MOD_'+String(t+1).padStart(2,'0')+' (ZETA ASSOC) não tem saída no DELTA — este MOD responderá livre.')});
