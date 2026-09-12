@@ -704,7 +704,9 @@ int Est_Tmp              = 0;   // v3za: valor absoluto da fonte no destrave do 
 int Pipe_Val             = 0;   // valor processado do eixo (-100..100)
 int Pipe_Raw             = 0;   // valor bruto lido do eixo físico
 int Pipe_Thr            = 0;   // threshold em unidades de eixo
-// Acumuladores por destino (0-13): guardam o valor de MAIOR intensidade do ciclo
+// v7g: acumuladores por destino (0-17). O comentario dizia 0-13 desde antes da v3zc,
+// quando os quatro D-pads entraram como destinos 14-17. Guardam o valor de MAIOR
+// intensidade do ciclo
 int Acc_00=0; int Acc_01=0; int Acc_02=0; int Acc_03=0; int Acc_04=0; int Acc_05=0; int Acc_06=0;
 int Acc_07=0; int Acc_08=0; int Acc_09=0; int Acc_10=0; int Acc_11=0; int Acc_12=0; int Acc_13=0;
 // v3zc: acumuladores dos 4 D-pads (destinos 14-17). Sao DIGITAIS, como os 0-9 — entraram
